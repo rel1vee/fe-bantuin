@@ -6,6 +6,7 @@
 @theme inline {
   --font-body: var(--font-outfit);
   --font-display: var(--font-host-grotesk);
+  --color-ghost: #f4f4f9;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-sidebar-ring: var(--sidebar-ring);
