@@ -125,11 +125,6 @@ const Header = () => {
             </>
           ) : (
             <>
-              <Button className="text-sm lg:text-base">
-                <TbTools className="text-white" />
-                <span className="hidden lg:inline">Jadi Penyedia</span>
-                <span className="lg:hidden">Penyedia</span>
-              </Button>
               <Button
                 variant="outline"
                 className="text-sm lg:text-base"
