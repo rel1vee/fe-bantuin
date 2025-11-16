@@ -28,16 +28,16 @@ const Header = () => {
     <header className="w-full sticky top-0 bg-white z-50 border-b border-b-accent">
       <div className="h-16 md:h-20 lg:h-24 flex px-4 sm:px-6 md:px-12 lg:px-24 xl:px-48 items-center justify-between">
         {/* Logo */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center">
           <Image
             src={Logo}
             alt="logo"
-            width={36}
-            height={36}
-            className="md:w-10 md:h-10 lg:w-12 lg:h-12"
+            width={128}
+            height={128}
+            className="md:w-10 md:h-10 lg:w-14 lg:h-14"
           />
-          <h1 className="font-display text-primary font-bold text-2xl md:text-3xl lg:text-4xl">
-            <Link href="/">
+          <h1 className="font-display text-primary font-bold text-2xl md:text-3xl">
+            <Link className="" href="/">
               Bant<span className="text-secondary">uin</span>
             </Link>
           </h1>
