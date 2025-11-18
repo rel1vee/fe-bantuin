@@ -12,11 +12,15 @@ export default function AuthCallbackClient() {
 
     if (token) {
       localStorage.setItem("access_token", token);
+      // Set flag in sessionStorage to indicate we're coming from auth callback
+      sessionStorage.setItem("fromAuthCallback", "true");
       window.dispatchEvent(new Event("tokenSet"));
 
+      // Use hard redirect with a small delay to ensure localStorage is saved
       setTimeout(() => {
+        // Force full page reload to ensure AuthContext is re-initialized
         window.location.href = "/";
-      }, 200);
+      }, 300);
     } else {
       router.push("/auth/error");
     }
