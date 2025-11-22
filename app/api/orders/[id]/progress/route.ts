@@ -9,7 +9,7 @@ export async function POST(
   const token = request.headers.get("authorization");
   const body = await request.json();
 
-  const response = await fetch(`${API_URL}/orders/${id}/deliver`, {
+  const response = await fetch(`${API_URL}/orders/${id}/progress`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: token || "" },
     body: JSON.stringify(body),

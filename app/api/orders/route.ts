@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-/**
- * GET /api/orders
- * Mengambil daftar pesanan (untuk buyer atau seller)
- */
+// Handler untuk mendapatkan daftar order (GET)
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get("authorization");
@@ -13,13 +10,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Ambil query params (misal: ?role=worker&status=IN_PROGRESS)
+    // Ambil query params dari URL (role, status, sortBy, dll)
     const searchParams = request.nextUrl.searchParams;
     const queryString = searchParams.toString();
 
+    // Forward request ke Backend NestJS
     const response = await fetch(`${API_URL}/orders?${queryString}`, {
       method: "GET",
       headers: {
+        "Content-Type": "application/json",
         Authorization: token,
       },
     });
@@ -28,14 +27,14 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: data.message || "Gagal mengambil daftar order" },
+        { error: data.message || "Failed to fetch orders" },
         { status: response.status }
       );
     }
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching orders:", error);
+    console.error("Error forwarding GET orders:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -43,10 +42,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * POST /api/orders
- * Membuat order baru (status DRAFT)
- */
+// Handler untuk membuat order baru (POST) - Sudah ada sebelumnya
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get("authorization");
@@ -54,7 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json(); // { serviceId, requirements, attachments }
+    const body = await request.json();
 
     const response = await fetch(`${API_URL}/orders`, {
       method: "POST",
@@ -69,15 +65,13 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: data.message || "Gagal membuat order" },
+        { error: data.message || "Failed to create order" },
         { status: response.status }
       );
     }
 
-    // Mengembalikan data order yang baru dibuat (termasuk ID-nya)
-    return NextResponse.json(data);
+    return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("Error creating order:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

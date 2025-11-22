@@ -1,45 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
-
-/**
- * POST /api/orders/:id/start
- * Seller memulai pengerjaan
- */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const token = request.headers.get("authorization");
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const { id } = await params;
+  const token = request.headers.get("authorization");
 
-    const { id } = await params;
+  const response = await fetch(`${API_URL}/orders/${id}/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: token || "" },
+  });
 
-    const response = await fetch(`${API_URL}/orders/${id}/start`, {
-      method: "POST",
-      headers: {
-        Authorization: token,
-      },
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: data.message || "Gagal memulai pengerjaan" },
-        { status: response.status }
-      );
-    }
-
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error("Error starting work:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
+  const data = await response.json();
+  return NextResponse.json(data, { status: response.status });
 }
