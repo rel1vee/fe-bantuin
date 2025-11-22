@@ -116,7 +116,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [initAuth]);
 
   const login = () => {
-    window.location.href = `${API_URL}/auth/google`;
+    // AMBIL URL SAAT INI (Localhost atau Ngrok)
+    const currentUrl = window.location.origin;
+
+    // KIRIM SEBAGAI PARAMETER 'returnUrl'
+    window.location.href = `${API_URL}/auth/google?returnUrl=${encodeURIComponent(
+      currentUrl
+    )}`;
   };
 
   const logout = async () => {
