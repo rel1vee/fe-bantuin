@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { FcGoogle } from "react-icons/fc";
-import { TbTools, TbDashboard } from "react-icons/tb"; // Tambah TbDashboard
+import { TbDashboard, TbTools } from "react-icons/tb";
 import { HiMenu, HiX } from "react-icons/hi";
 import { IoLogOut, IoSettingsOutline } from "react-icons/io5";
 import { FiUser } from "react-icons/fi";
@@ -19,6 +19,10 @@ import Link from "next/link";
 import Image from "next/image";
 import Logo from "@/public/logo.png";
 import { useAuth } from "@/contexts/AuthContext";
+import { Bell } from "lucide-react";
+
+// Import Baru
+import NotificationDropdown from "@/components/notifications/NotificationDropdown";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -28,22 +32,22 @@ const Header = () => {
     <header className="w-full sticky top-0 bg-white z-50 border-b border-b-accent">
       <div className="h-16 md:h-20 lg:h-24 flex px-4 sm:px-6 md:px-12 lg:px-24 xl:px-48 items-center justify-between">
         {/* Logo */}
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
           <Image
             src={Logo}
             alt="logo"
-            width={128}
-            height={128}
-            className="md:w-10 md:h-10 lg:w-14 lg:h-14"
+            width={36}
+            height={36}
+            className="md:w-10 md:h-10 lg:w-12 lg:h-12"
           />
           <h1 className="font-display text-primary font-bold text-2xl md:text-3xl lg:text-4xl">
-            <Link className="" href="/">
+            <Link href="/">
               Bant<span className="text-secondary">uin</span>
             </Link>
           </h1>
         </div>
 
-        {/* Desktop Navigation */}
+        {/* Desktop Nav */}
         <nav className="hidden lg:flex justify-between gap-2 items-center">
           <ul className="flex items-center justify-between gap-4">
             <li>
@@ -69,7 +73,7 @@ const Header = () => {
           </ul>
         </nav>
 
-        {/* Desktop Action Buttons */}
+        {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-4">
           {loading ? (
             <div className="animate-pulse flex gap-2">
@@ -78,14 +82,12 @@ const Header = () => {
             </div>
           ) : isAuthenticated && user ? (
             <>
+              {/* Notifikasi Dropdown (Desktop Only) */}
+              <NotificationDropdown />
+
               <Button className="text-sm">
                 <TbTools className="text-white" />
-                <Link href="/seller/dashboard" className="hidden lg:inline">
-                  Jadi Penyedia
-                </Link>
-                <Link href="/seller/dashboard" className="lg:hidden">
-                  Penyedia
-                </Link>
+                <Link href="/seller/dashboard">Jadi Penyedia</Link>
               </Button>
 
               {/* User Dropdown Menu */}
@@ -153,25 +155,16 @@ const Header = () => {
               </DropdownMenu>
             </>
           ) : (
-            <>
-              <Button
-                variant="outline"
-                className="text-sm lg:text-base"
-                onClick={login}
-                disabled={loading}
-              >
-                <FcGoogle />
-                <span className="hidden sm:inline">Masuk</span>
-              </Button>
-            </>
+            <Button variant="outline" onClick={login}>
+              <FcGoogle /> Masuk
+            </Button>
           )}
         </div>
 
-        {/* Mobile Menu Button */}
+        {/* Mobile Menu Toggle */}
         <button
           className="md:hidden p-2 text-primary"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Toggle menu"
         >
           {mobileMenuOpen ? (
             <HiX className="w-6 h-6" />
@@ -211,6 +204,16 @@ const Header = () => {
             <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-accent">
               {isAuthenticated && user ? (
                 <>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                    asChild
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Link href="/notifications">
+                      <Bell className="mr-2 h-4 w-4" /> Notifikasi
+                    </Link>
+                  </Button>
                   <div className="flex items-center gap-2 px-2 py-2">
                     {user.profilePicture ? (
                       <Image
