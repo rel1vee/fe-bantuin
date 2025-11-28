@@ -24,7 +24,7 @@ import {
   TbHome,
   TbChevronRight,
 } from "react-icons/tb";
-import Logo from "@/public/logo.png";
+import Logo from "@/public/logo.svg";
 
 interface BuyerLayoutProps {
   children: React.ReactNode;
