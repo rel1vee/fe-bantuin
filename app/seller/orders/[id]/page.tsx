@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,13 +33,16 @@ import {
   Briefcase,
   Plus,
   RefreshCcw,
+  Loader2,
+  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { uploadSellerOrderPhoto } from "@/lib/upload";
 
 const SellerOrderDetailPage = () => {
   const params = useParams();
   const router = useRouter();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading, user } = useAuth();
 
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -49,9 +52,14 @@ const SellerOrderDetailPage = () => {
 
   const [progressTitle, setProgressTitle] = useState("");
   const [progressDesc, setProgressDesc] = useState("");
-  const [progressFile, setProgressFile] = useState("");
+  const [progressFiles, setProgressFiles] = useState<string[]>([]);
+  const [progressUploading, setProgressUploading] = useState(false);
+  const progressFileInputRef = useRef<HTMLInputElement>(null);
+
   const [deliveryNote, setDeliveryNote] = useState("");
-  const [deliveryFile, setDeliveryFile] = useState("");
+  const [deliveryFiles, setDeliveryFiles] = useState<string[]>([]);
+  const [deliveryUploading, setDeliveryUploading] = useState(false);
+  const deliveryFileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -92,6 +100,35 @@ const SellerOrderDetailPage = () => {
     }
   };
 
+  const handleProgressFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user) return;
+
+    setProgressUploading(true);
+
+    try {
+      const orderName = `order-${order?.id || Date.now()}`;
+      const uploadPromises = Array.from(files).map((file) =>
+        uploadSellerOrderPhoto(file, user.fullName, orderName, user.nim)
+      );
+
+      const results = await Promise.all(uploadPromises);
+      const newUrls = results.map((result) => result.data.url);
+      setProgressFiles((prev) => [...prev, ...newUrls]);
+    } catch (err: any) {
+      alert(err.message || "Gagal mengupload file");
+    } finally {
+      setProgressUploading(false);
+      if (progressFileInputRef.current) {
+        progressFileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleRemoveProgressFile = (index: number) => {
+    setProgressFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmitProgress = async () => {
     try {
       const token = localStorage.getItem("access_token");
@@ -104,14 +141,46 @@ const SellerOrderDetailPage = () => {
         body: JSON.stringify({
           title: progressTitle,
           description: progressDesc,
-          images: progressFile ? [progressFile] : [],
+          images: progressFiles,
         }),
       });
       setShowProgressDialog(false);
+      setProgressTitle("");
+      setProgressDesc("");
+      setProgressFiles([]);
       fetchOrder();
     } catch (e) {
       alert("Gagal update progress");
     }
+  };
+
+  const handleDeliveryFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user) return;
+
+    setDeliveryUploading(true);
+
+    try {
+      const orderName = `order-${order?.id || Date.now()}`;
+      const uploadPromises = Array.from(files).map((file) =>
+        uploadSellerOrderPhoto(file, user.fullName, orderName, user.nim)
+      );
+
+      const results = await Promise.all(uploadPromises);
+      const newUrls = results.map((result) => result.data.url);
+      setDeliveryFiles((prev) => [...prev, ...newUrls]);
+    } catch (err: any) {
+      alert(err.message || "Gagal mengupload file");
+    } finally {
+      setDeliveryUploading(false);
+      if (deliveryFileInputRef.current) {
+        deliveryFileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleRemoveDeliveryFile = (index: number) => {
+    setDeliveryFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmitDeliver = async () => {
@@ -125,10 +194,12 @@ const SellerOrderDetailPage = () => {
         },
         body: JSON.stringify({
           deliveryNote,
-          deliveryFiles: deliveryFile ? [deliveryFile] : [],
+          deliveryFiles: deliveryFiles,
         }),
       });
       setShowDeliverDialog(false);
+      setDeliveryNote("");
+      setDeliveryFiles([]);
       fetchOrder();
     } catch (e) {
       alert("Gagal mengirim hasil");
@@ -533,12 +604,42 @@ const SellerOrderDetailPage = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Lampiran (Link)</Label>
+                <Label>Lampiran</Label>
                 <Input
-                  placeholder="https://..."
-                  value={progressFile}
-                  onChange={(e) => setProgressFile(e.target.value)}
+                  ref={progressFileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx"
+                  onChange={handleProgressFileSelect}
+                  disabled={progressUploading}
                 />
+                {progressUploading && (
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                    Mengupload...
+                  </div>
+                )}
+                {progressFiles.length > 0 && (
+                  <div className="space-y-1 mt-2">
+                    {progressFiles.map((url, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded"
+                      >
+                        <span className="truncate flex-1">{url}</span>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveProgressFile(index)}
+                          className="h-6 w-6"
+                        >
+                          <X className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>
@@ -571,12 +672,42 @@ const SellerOrderDetailPage = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Link File (Google Drive/Dropbox)</Label>
+                <Label>File Hasil</Label>
                 <Input
-                  placeholder="https://..."
-                  value={deliveryFile}
-                  onChange={(e) => setDeliveryFile(e.target.value)}
+                  ref={deliveryFileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx,.zip,.rar"
+                  onChange={handleDeliveryFileSelect}
+                  disabled={deliveryUploading}
                 />
+                {deliveryUploading && (
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                    Mengupload...
+                  </div>
+                )}
+                {deliveryFiles.length > 0 && (
+                  <div className="space-y-1 mt-2">
+                    {deliveryFiles.map((url, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded"
+                      >
+                        <span className="truncate flex-1">{url}</span>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveDeliveryFile(index)}
+                          className="h-6 w-6"
+                        >
+                          <X className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>

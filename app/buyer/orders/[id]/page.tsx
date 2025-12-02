@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,8 +33,12 @@ import {
   Download,
   ArrowLeft,
   AlertCircle,
+  RefreshCw,
+  Loader2,
+  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { uploadBuyerOrderPhoto } from "@/lib/upload";
 
 const BuyerOrderDetailPage = () => {
   const params = useParams();
@@ -49,10 +53,11 @@ const BuyerOrderDetailPage = () => {
   
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
   const [revisionNote, setRevisionNote] = useState("");
-  const [revisionAttachmentInput, setRevisionAttachmentInput] = useState("");
   const [revisionAttachments, setRevisionAttachments] = useState<string[]>([]);
   const [revisionLoading, setRevisionLoading] = useState(false);
+  const [revisionUploading, setRevisionUploading] = useState(false);
   const [revisionError, setRevisionError] = useState("");
+  const revisionFileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -108,10 +113,34 @@ const BuyerOrderDetailPage = () => {
     }
   };
   
-  const handleAddRevisionAttachment = () => {
-    if (revisionAttachmentInput && revisionAttachments.length < 5) {
-      setRevisionAttachments([...revisionAttachments, revisionAttachmentInput]);
-      setRevisionAttachmentInput("");
+  const handleRevisionFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user) return;
+
+    if (revisionAttachments.length + files.length > 5) {
+      setRevisionError("Maksimal 5 file");
+      return;
+    }
+
+    setRevisionUploading(true);
+    setRevisionError("");
+
+    try {
+      const orderName = `order-${order?.id || Date.now()}`;
+      const uploadPromises = Array.from(files).map((file) =>
+        uploadBuyerOrderPhoto(file, user.fullName, orderName, user.nim)
+      );
+
+      const results = await Promise.all(uploadPromises);
+      const newUrls = results.map((result) => result.data.url);
+      setRevisionAttachments((prev) => [...prev, ...newUrls]);
+    } catch (err: any) {
+      setRevisionError(err.message || "Gagal mengupload file");
+    } finally {
+      setRevisionUploading(false);
+      if (revisionFileInputRef.current) {
+        revisionFileInputRef.current.value = "";
+      }
     }
   };
 
@@ -623,19 +652,20 @@ const BuyerOrderDetailPage = () => {
                           <Label>Lampiran Pendukung (Max 5)</Label>
                           <div className="flex gap-2">
                             <Input
-                              placeholder="URL File / Gambar"
-                              value={revisionAttachmentInput}
-                              onChange={(e) => setRevisionAttachmentInput(e.target.value)}
-                              disabled={revisionAttachments.length >= 5}
+                              ref={revisionFileInputRef}
+                              type="file"
+                              multiple
+                              accept="image/*,.pdf,.doc,.docx"
+                              onChange={handleRevisionFileSelect}
+                              disabled={revisionAttachments.length >= 5 || revisionUploading}
+                              className="flex-1"
                             />
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              onClick={handleAddRevisionAttachment}
-                              disabled={!revisionAttachmentInput || revisionAttachments.length >= 5}
-                            >
-                              Tambah
-                            </Button>
+                            {revisionUploading && (
+                              <div className="flex items-center text-sm text-muted-foreground px-2">
+                                <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                                Mengupload...
+                              </div>
+                            )}
                           </div>
                           <div className="space-y-1 mt-2">
                             {revisionAttachments.map((url, index) => (
