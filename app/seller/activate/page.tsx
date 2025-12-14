@@ -3,6 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import PublicLayout from "@/components/layouts/PublicLayout";
 import {
   Card,
@@ -12,12 +13,23 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   TbTools,
   TbShieldCheck,
   TbCoin,
   TbStar,
   TbArrowLeft,
+  TbCheck,
 } from "react-icons/tb";
 import Link from "next/link";
 
@@ -29,6 +41,13 @@ const SellerActivate = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [bio, setBio] = useState("");
 
+  // OTP Verification states
+  const [isOtpDialogOpen, setIsOtpDialogOpen] = useState(false);
+  const [verificationStep, setVerificationStep] = useState<"request" | "verify">("request");
+  const [otpInput, setOtpInput] = useState("");
+  const [isSubmittingOtp, setIsSubmittingOtp] = useState(false);
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.push("/");
@@ -39,6 +58,75 @@ const SellerActivate = () => {
     }
   }, [user, loading, isAuthenticated, router]);
 
+  const handleRequestOtp = async () => {
+    if (!phoneNumber || phoneNumber.length < 10) {
+      toast.error("Nomor telepon minimal 10 digit");
+      return;
+    }
+
+    setIsSubmittingOtp(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch("/api/users/request-phone-verification", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ phoneNumber }),
+      });
+      const data = await res.json();
+      if (data.success || res.ok) {
+        toast.success("Kode Verifikasi dikirim ke WhatsApp Anda");
+        if (data.developer_note) toast.info(data.developer_note);
+        setVerificationStep("verify");
+      } else {
+        toast.error(data.message || "Gagal mengirim OTP");
+      }
+    } catch (err) {
+      toast.error("Terjadi kesalahan saat menghubungi server");
+    } finally {
+      setIsSubmittingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpInput) {
+      toast.error("Masukkan kode OTP");
+      return;
+    }
+
+    setIsSubmittingOtp(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch("/api/users/verify-phone", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ otp: otpInput }),
+      });
+      const data = await res.json();
+      if (data.success || res.ok) {
+        toast.success("Nomor telepon berhasil diverifikasi ✓");
+        setIsPhoneVerified(true);
+        setIsOtpDialogOpen(false);
+        // Reset
+        setTimeout(() => {
+          setVerificationStep("request");
+          setOtpInput("");
+        }, 300);
+      } else {
+        toast.error(data.message || "OTP Salah / Kadaluarsa");
+      }
+    } catch (err) {
+      toast.error("Terjadi kesalahan saat verifikasi");
+    } finally {
+      setIsSubmittingOtp(false);
+    }
+  };
+
   const handleActivate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -46,6 +134,11 @@ const SellerActivate = () => {
     // Validasi
     if (!phoneNumber || phoneNumber.length < 10) {
       setError("Nomor telepon minimal 10 digit");
+      return;
+    }
+
+    if (!isPhoneVerified) {
+      setError("Silakan verifikasi nomor telepon terlebih dahulu");
       return;
     }
 
@@ -185,17 +278,43 @@ const SellerActivate = () => {
                   >
                     Nomor WhatsApp <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="tel"
-                    id="phoneNumber"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="08xxxxxxxxxx"
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="tel"
+                      id="phoneNumber"
+                      value={phoneNumber}
+                      onChange={(e) => {
+                        setPhoneNumber(e.target.value);
+                        setIsPhoneVerified(false); // Reset verification when number changes
+                      }}
+                      placeholder="08xxxxxxxxxx"
+                      required
+                      disabled={isPhoneVerified}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-100"
+                    />
+                    {!isPhoneVerified ? (
+                      <Button
+                        type="button"
+                        onClick={() => setIsOtpDialogOpen(true)}
+                        disabled={!phoneNumber || phoneNumber.length < 10}
+                      >
+                        Verifikasi
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="bg-green-50 border-green-500 text-green-700"
+                        disabled
+                      >
+                        <TbCheck className="mr-1" /> Terverifikasi
+                      </Button>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Nomor ini akan digunakan untuk komunikasi dengan pembeli
+                    {isPhoneVerified
+                      ? "Nomor sudah diverifikasi ✓"
+                      : "Nomor ini akan digunakan untuk komunikasi dengan pembeli. Klik 'Verifikasi' untuk mendapat kode OTP."}
                   </p>
                 </div>
 
@@ -326,6 +445,76 @@ const SellerActivate = () => {
           </Card>
         </div>
       </div>
+
+      {/* OTP Verification Dialog */}
+      <Dialog open={isOtpDialogOpen} onOpenChange={setIsOtpDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Verifikasi Nomor WhatsApp</DialogTitle>
+            <DialogDescription>
+              {verificationStep === "request"
+                ? "Pastikan nomor yang Anda masukkan sudah benar sebelum meminta kode OTP."
+                : "Masukkan 6 digit kode yang dikirim ke WhatsApp Anda."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {verificationStep === "request" ? (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="verify-phone">Nomor WhatsApp</Label>
+                <Input
+                  id="verify-phone"
+                  value={phoneNumber}
+                  disabled
+                  className="bg-gray-50"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Kode OTP akan dikirim ke nomor ini
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="otp">Kode Verifikasi (OTP)</Label>
+                <Input
+                  id="otp"
+                  placeholder="123456"
+                  maxLength={6}
+                  className="text-center text-lg tracking-widest"
+                  value={otpInput}
+                  onChange={(e) => setOtpInput(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            {verificationStep === "request" ? (
+              <Button onClick={handleRequestOtp} disabled={isSubmittingOtp}>
+                {isSubmittingOtp ? "Mengirim..." : "Kirim Kode OTP"}
+              </Button>
+            ) : (
+              <div className="flex flex-col w-full gap-2">
+                <Button onClick={handleVerifyOtp} disabled={isSubmittingOtp}>
+                  {isSubmittingOtp ? "Memverifikasi..." : "Verifikasi"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setVerificationStep("request");
+                    setOtpInput("");
+                  }}
+                  disabled={isSubmittingOtp}
+                >
+                  Ubah Nomor Telepon
+                </Button>
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PublicLayout>
   );
 };

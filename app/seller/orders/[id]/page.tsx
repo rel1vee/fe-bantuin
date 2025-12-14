@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChat } from "@/contexts/ChatContext";
 import SellerLayout from "@/components/layouts/SellerLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,7 @@ const SellerOrderDetailPage = () => {
   const params = useParams();
   const router = useRouter();
   const { isAuthenticated, loading: authLoading, user } = useAuth();
+  const { openChatWith } = useChat();
 
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -289,14 +291,14 @@ const SellerOrderDetailPage = () => {
     },
     ...(hasRevisionHistory || isRevisionStage
       ? [
-          {
-            id: 3.5,
-            label: `Revisi Diminta (${order.revisionCount}x)`,
-            date: order.status === "REVISION" ? order.deliveredAt : undefined,
-            completed: isRevisionStage || isAfterRevision,
-            icon: RefreshCcw,
-          },
-        ]
+        {
+          id: 3.5,
+          label: `Revisi Diminta (${order.revisionCount}x)`,
+          date: order.status === "REVISION" ? order.deliveredAt : undefined,
+          completed: isRevisionStage || isAfterRevision,
+          icon: RefreshCcw,
+        },
+      ]
       : []),
     {
       id: 4,
@@ -362,26 +364,26 @@ const SellerOrderDetailPage = () => {
 
             {(order.status === "IN_PROGRESS" ||
               order.status === "REVISION") && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowProgressDialog(true)}
-                >
-                  <Plus className="mr-2 h-4 w-4" /> Update Progress
-                </Button>
-                <Button onClick={() => setShowDeliverDialog(true)}>
-                  <Send className="mr-2 h-4 w-4" /> Kirim Hasil
-                  {order.status === "REVISION" && (
-                    <Badge
-                      variant="secondary"
-                      className="bg-white/30 text-white ml-1"
-                    >
-                      Revisi
-                    </Badge>
-                  )}
-                </Button>
-              </>
-            )}
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowProgressDialog(true)}
+                  >
+                    <Plus className="mr-2 h-4 w-4" /> Update Progress
+                  </Button>
+                  <Button onClick={() => setShowDeliverDialog(true)}>
+                    <Send className="mr-2 h-4 w-4" /> Kirim Hasil
+                    {order.status === "REVISION" && (
+                      <Badge
+                        variant="secondary"
+                        className="bg-white/30 text-white ml-1"
+                      >
+                        Revisi
+                      </Badge>
+                    )}
+                  </Button>
+                </>
+              )}
 
             {order.status === "REVISION" && (
               <Badge
@@ -439,11 +441,10 @@ const SellerOrderDetailPage = () => {
                         </div>
                         <div className="pt-2">
                           <h4
-                            className={`font-medium ${
-                              isCompleted
-                                ? "text-foreground"
-                                : "text-muted-foreground"
-                            }`}
+                            className={`font-medium ${isCompleted
+                              ? "text-foreground"
+                              : "text-muted-foreground"
+                              }`}
                           >
                             {stage.label}
                           </h4>
@@ -612,8 +613,26 @@ const SellerOrderDetailPage = () => {
                     )}
                   </TabsContent>
                   <TabsContent value="chat" className="mt-4">
-                    <div className="bg-muted/30 rounded-lg p-4 text-center text-sm text-muted-foreground min-h-[150px] flex flex-col items-center justify-center">
-                      <p>Fitur Chat segera hadir.</p>
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        Hubungi pembeli untuk komunikasi lebih lanjut mengenai pesanan ini.
+                      </p>
+                      <Button
+                        className="w-full"
+                        onClick={() => {
+                          if (order?.buyer) {
+                            openChatWith({
+                              id: order.buyer.id,
+                              fullName: order.buyer.fullName,
+                              profilePicture: order.buyer.profilePicture || "",
+                              major: order.buyer.major || ""
+                            });
+                          }
+                        }}
+                      >
+                        <Send className="mr-2 h-4 w-4" />
+                        Buka Chat dengan {order?.buyer?.fullName || 'Pembeli'}
+                      </Button>
                     </div>
                   </TabsContent>
                 </Tabs>

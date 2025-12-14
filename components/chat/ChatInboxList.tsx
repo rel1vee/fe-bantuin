@@ -74,8 +74,10 @@ export const ChatInboxList = () => {
                   <p className={`text-xs truncate flex-1 ${isUnread ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
                     {displayMessage || "Mulai percakapan..."}
                   </p>
-                  {isUnread && (
-                    <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
+                  {isUnread && conv.unreadCount && conv.unreadCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold shrink-0 min-w-[18px] text-center">
+                      {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+                    </span>
                   )}
                 </div>
               </div>

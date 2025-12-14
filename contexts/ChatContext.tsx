@@ -113,18 +113,30 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const markAsRead = async (conversationId: string) => {
     const token = localStorage.getItem("access_token");
     if (!token) return;
+
     try {
-      await fetch(`/api/chat/${conversationId}/read`, {
+      const res = await fetch(`/api/chat/${conversationId}/read`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === conversationId ? { ...c, unreadCount: 0 } : c
-        )
-      );
+
+      if (!res.ok) {
+        console.error("Failed to mark as read:", res.statusText);
+        return;
+      }
+
+      const data = await res.json();
+
+      // Only update local state if API call was successful
+      if (data.success) {
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === conversationId ? { ...c, unreadCount: 0 } : c
+          )
+        );
+      }
     } catch (e) {
-      console.error(e);
+      console.error("Error marking conversation as read:", e);
     }
   };
 
