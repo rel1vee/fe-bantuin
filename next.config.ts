@@ -29,14 +29,6 @@ const nextConfig: any = {
       },
     ],
   },
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${process.env.BACKEND_URL || "http://localhost:5500"}/api/:path*`,
-      },
-    ];
-  },
 };
 
 export default nextConfig;
