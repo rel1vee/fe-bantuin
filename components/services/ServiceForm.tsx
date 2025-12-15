@@ -207,7 +207,20 @@ const ServiceForm = ({ open, onOpenChange, onSubmit, initialData, mode = "create
 
     setLoading(true);
     try {
-      await onSubmit(formData);
+      // Prepare clean payload
+      const payload = { ...formData };
+
+      // Remove optional fields if they are 0 or empty
+      if (!payload.minimumOrder) delete payload.minimumOrder;
+      if (!payload.pricePerUnit) delete payload.pricePerUnit;
+
+      // For FIXED/CUSTOM pricing, ensure unit params are cleared
+      if (payload.pricingType === 'FIXED' || payload.pricingType === 'CUSTOM') {
+        delete payload.pricePerUnit;
+        delete payload.minimumOrder;
+      }
+
+      await onSubmit(payload);
       onOpenChange(false);
       // Reset form
       setFormData({

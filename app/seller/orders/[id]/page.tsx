@@ -578,39 +578,84 @@ const SellerOrderDetailPage = () => {
                     <TabsTrigger value="files">File</TabsTrigger>
                     <TabsTrigger value="chat">Chat</TabsTrigger>
                   </TabsList>
-                  <TabsContent value="files" className="mt-4 space-y-3">
-                    {order.deliveryFiles?.length > 0 ? (
-                      order.deliveryFiles.map((file: string, idx: number) => (
-                        <div
-                          key={idx}
-                          className="p-3 bg-muted/30 border rounded-lg flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <FileText className="h-4 w-4 text-blue-500 shrink-0" />
-                            <span className="text-sm truncate">
-                              Hasil {idx + 1}
-                            </span>
-                          </div>
-                          <a
-                            href={file}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
+                  <TabsContent value="files" className="mt-4 space-y-6">
+                    {/* Buyer Attachments */}
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">File dari Pembeli</h4>
+                      {order.attachments?.length > 0 ? (
+                        <div className="space-y-2">
+                          {order.attachments.map((file: string, idx: number) => (
+                            <div
+                              key={idx}
+                              className="p-3 bg-muted/30 border rounded-lg flex items-center justify-between"
                             >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </a>
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <FileText className="h-4 w-4 text-orange-500 shrink-0" />
+                                <span className="text-sm truncate">
+                                  Attachment {idx + 1}
+                                </span>
+                              </div>
+                              <a
+                                href={file}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </a>
+                            </div>
+                          ))}
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground text-sm">
-                        Belum ada file dikirim
-                      </div>
-                    )}
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          Tidak ada lampiran dari pembeli.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Seller Delivery Files */}
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">File Hasil Kerja</h4>
+                      {order.deliveryFiles?.length > 0 ? (
+                        <div className="space-y-2">
+                          {order.deliveryFiles.map((file: string, idx: number) => (
+                            <div
+                              key={idx}
+                              className="p-3 bg-muted/30 border rounded-lg flex items-center justify-between"
+                            >
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+                                <span className="text-sm truncate">
+                                  Hasil {idx + 1}
+                                </span>
+                              </div>
+                              <a
+                                href={file}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          Belum ada file dikirim.
+                        </p>
+                      )}
+                    </div>
                   </TabsContent>
                   <TabsContent value="chat" className="mt-4">
                     <div className="space-y-3">
