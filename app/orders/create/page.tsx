@@ -9,9 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { TbLoader, TbAlertCircle, TbX, TbFileUpload } from "react-icons/tb";
+import { TbLoader, TbAlertCircle, TbX, TbFileUpload, TbPhotoPlus, TbTrash } from "react-icons/tb";
 import { uploadBuyerOrderPhoto, deleteFile } from "@/lib/upload";
 import Image from "next/image";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Slider } from "@/components/ui/slider";
+import Cropper from "react-easy-crop";
+import getCroppedImg from "@/lib/cropImage";
 
 const CreateOrderContent = () => {
   const router = useRouter();
@@ -25,6 +29,15 @@ const CreateOrderContent = () => {
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Crop State
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+  const [isCropping, setIsCropping] = useState(false);
+  const [selectedFileForUpload, setSelectedFileForUpload] = useState<File | null>(null);
 
   if (authLoading) return <div className="p-8 text-center">Loading...</div>;
   if (!isAuthenticated) {
@@ -40,26 +53,70 @@ const CreateOrderContent = () => {
     const files = e.target.files;
     if (!files || files.length === 0 || !user) return;
 
+    const file = files[0];
+
+    // If image, open cropper
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        setImageSrc(reader.result as string);
+        setIsCropping(true);
+        setSelectedFileForUpload(file);
+      });
+      reader.readAsDataURL(file);
+      // Reset input
+      e.target.value = "";
+    } else {
+      // Direct upload for non-images
+      await processFileUpload(file);
+      // Reset input
+      e.target.value = "";
+    }
+  };
+
+  const processFileUpload = async (file: File) => {
     setUploading(true);
     setError("");
-
     try {
       const orderName = `order-${Date.now()}`;
-      const uploadPromises = Array.from(files).map((file) => uploadBuyerOrderPhoto(file, user.fullName, orderName, user.nim));
+      const result = await uploadBuyerOrderPhoto(file, user!.fullName, orderName, user!.nim);
 
-      const results = await Promise.all(uploadPromises);
-      const newAttachments = results.map((result) => ({
+      setAttachments((prev) => [...prev, {
         url: result.data.url,
         path: result.data.path,
-      }));
-      setAttachments((prev) => [...prev, ...newAttachments]);
+      }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal mengupload file");
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+    }
+  };
+
+  const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  };
+
+  const handleCropConfirm = async () => {
+    if (!imageSrc || !croppedAreaPixels) return;
+
+    try {
+      setUploading(true);
+      const croppedBlob = await getCroppedImg(
+        imageSrc,
+        croppedAreaPixels,
+        rotation
+      );
+
+      if (croppedBlob) {
+        const file = new File([croppedBlob], selectedFileForUpload?.name || "image.jpg", { type: "image/jpeg" });
+        await processFileUpload(file);
       }
+      setIsCropping(false);
+      setImageSrc(null);
+    } catch (e) {
+      console.error(e);
+      setError("Gagal memproses gambar");
+      setUploading(false);
     }
   };
 
@@ -132,46 +189,67 @@ const CreateOrderContent = () => {
                 <p className="text-xs text-muted-foreground">Minimal 20 karakter. Semakin detail semakin baik.</p>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <Label>Lampiran Pendukung (Opsional)</Label>
-                <div className="flex gap-2">
-                  <Input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx" onChange={handleFileSelect} disabled={uploading} className="flex-1" />
-                  {uploading && (
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <TbLoader className="animate-spin mr-2" />
-                      Mengupload...
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {/* Attachments List */}
+                  {attachments.map((attachment, idx) => {
+                    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(attachment.url);
+                    return (
+                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-border bg-muted">
+                        {isImage ? (
+                          <Image src={attachment.url} alt={`Attachment ${idx + 1}`} fill className="object-cover" sizes="(max-width: 640px) 50vw, 33vw" />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center">
+                            <TbFileUpload className="h-8 w-8 text-muted-foreground mb-1" />
+                            <p className="text-[10px] text-muted-foreground w-full truncate px-1 break-all">{attachment.url.split('/').pop()}</p>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Button type="button" size="icon" variant="destructive" onClick={() => handleRemoveAttachment(idx)} className="rounded-full h-8 w-8">
+                            <TbTrash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Add Button */}
+                  {attachments.length < 5 && (
+                    <div
+                      onClick={() => !uploading && fileInputRef.current?.click()}
+                      className={`
+                         relative aspect-square rounded-lg border-2 border-dashed 
+                         flex flex-col items-center justify-center cursor-pointer transition-all
+                         ${uploading
+                          ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                          : 'border-gray-300 hover:border-primary hover:bg-primary/5'
+                        }
+                       `}
+                    >
+                      {uploading ? (
+                        <div className="flex flex-col items-center text-muted-foreground">
+                          <TbLoader className="h-6 w-6 animate-spin mb-2" />
+                          <span className="text-[10px]">Mengupload...</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center text-muted-foreground gap-2">
+                          <TbPhotoPlus className="h-8 w-8" />
+                          <span className="text-xs font-medium text-center">Tambah<br />Lampiran</span>
+                        </div>
+                      )}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,.pdf,.doc,.docx"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
                     </div>
                   )}
                 </div>
-                {attachments.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2">
-                    {attachments.map((attachment, idx) => {
-                      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(attachment.url);
-                      return (
-                        <div key={idx} className="relative group">
-                          {isImage ? (
-                            <div className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted">
-                              <Image src={attachment.url} alt={`Attachment ${idx + 1}`} fill className="object-cover" sizes="(max-width: 640px) 50vw, 33vw" />
-                              <Button type="button" size="icon-sm" variant="destructive" onClick={() => handleRemoveAttachment(idx)} className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <TbX className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted flex items-center justify-center">
-                              <div className="text-center p-2">
-                                <TbFileUpload className="h-8 w-8 mx-auto text-muted-foreground mb-1" />
-                                <p className="text-xs text-muted-foreground truncate px-1">File</p>
-                              </div>
-                              <Button type="button" size="icon-sm" variant="destructive" onClick={() => handleRemoveAttachment(idx)} className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <TbX className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+
                 <p className="text-xs text-muted-foreground">Upload file pendukung untuk membantu penyedia jasa memahami kebutuhan Anda</p>
               </div>
 
@@ -194,6 +272,65 @@ const CreateOrderContent = () => {
           </CardContent>
         </Card>
       </div>
+      <Dialog open={isCropping} onOpenChange={setIsCropping}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sesuaikan Gambar</DialogTitle>
+            <DialogDescription>
+              Sesuaikan area gambar sebelum mengupload.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="relative h-64 w-full bg-slate-900 rounded-md overflow-hidden mt-4">
+            {imageSrc && (
+              <Cropper
+                image={imageSrc || undefined}
+                crop={crop}
+                zoom={zoom}
+                rotation={rotation}
+                aspect={1}
+                onCropChange={setCrop}
+                onCropComplete={onCropComplete}
+                onZoomChange={setZoom}
+              />
+            )}
+          </div>
+
+          <div className="py-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Zoom</span>
+              <Slider
+                value={[zoom]}
+                min={1}
+                max={3}
+                step={0.1}
+                onValueChange={(value) => setZoom(value[0])}
+                className="flex-1"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Rotasi</span>
+              <Slider
+                value={[rotation]}
+                min={0}
+                max={360}
+                step={1}
+                onValueChange={(value) => setRotation(value[0])}
+                className="flex-1"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCropping(false)} disabled={uploading}>
+              Batal
+            </Button>
+            <Button onClick={handleCropConfirm} disabled={uploading}>
+              {uploading ? "Mengupload..." : "Simpan & Upload"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PublicLayout>
   );
 };

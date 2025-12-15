@@ -12,6 +12,8 @@ import { TbMail } from "react-icons/tb";
 import { ChatInboxList } from "./ChatInboxList";
 
 const InboxDropdown = () => {
+  const { unreadCount } = useChat();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -21,6 +23,11 @@ const InboxDropdown = () => {
           className="relative rounded-full hover:bg-gray-100 text-gray-600"
         >
           <TbMail className="h-6 w-6" />
+          {unreadCount > 0 && (
+            <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center border border-white">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </Button>
       </DropdownMenuTrigger>
 

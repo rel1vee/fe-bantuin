@@ -14,6 +14,8 @@ interface User {
   email: string;
   fullName: string;
   profilePicture: string | null;
+  coverPicture?: string | null;
+  socialMedia?: any | null;
   isSeller: boolean;
   isVerified: boolean;
   major: string | null;

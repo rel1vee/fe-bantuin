@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,7 +30,17 @@ import {
   TbShoppingCart,
   TbCoin,
   TbPackage,
+  TbCamera,
+  TbBrandInstagram,
+  TbBrandLinkedin,
+  TbBrandTwitter,
+  TbBrandGithub,
+  TbWorld,
 } from "react-icons/tb";
+import { uploadAccountPhoto } from "@/lib/upload";
+import Cropper from "react-easy-crop";
+import getCroppedImg from "@/lib/cropImage";
+import { Slider } from "@/components/ui/slider";
 import {
   Dialog,
   DialogContent,
@@ -74,6 +84,124 @@ export default function ProfilePage() {
   const [isBioDialogOpen, setIsBioDialogOpen] = useState(false);
   const [bioInput, setBioInput] = useState("");
   const [isSubmittingBio, setIsSubmittingBio] = useState(false);
+
+  // State for Cover Photo & Social Media
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [isCoverUploading, setIsCoverUploading] = useState(false);
+
+  const [isSocialDialogOpen, setIsSocialDialogOpen] = useState(false);
+  const [socialInput, setSocialInput] = useState({
+    instagram: "",
+    linkedin: "",
+    twitter: "",
+    website: "",
+    github: ""
+  });
+  const [isSubmittingSocial, setIsSubmittingSocial] = useState(false);
+
+  // State for Cover Photo Cropping
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [isCroppingCover, setIsCroppingCover] = useState(false);
+  const [coverImageSrc, setCoverImageSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.socialMedia) {
+      // @ts-ignore - Assuming socialMedia matches structure
+      setSocialInput(prev => ({ ...prev, ...user.socialMedia }));
+    }
+  }, [user]);
+
+  const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  };
+
+  const handleCoverSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        setCoverImageSrc(reader.result?.toString() || "");
+        setIsCroppingCover(true);
+      });
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCoverCropConfirm = async () => {
+    if (!coverImageSrc || !croppedAreaPixels || !user) return;
+
+    setIsCoverUploading(true);
+    try {
+      const croppedImage = await getCroppedImg(
+        coverImageSrc,
+        croppedAreaPixels,
+        rotation
+      );
+
+      if (!croppedImage) {
+        toast.error("Gagal memproses gambar");
+        return;
+      }
+
+      // Create a file from the blob
+      const file = new File([croppedImage], "cover.jpg", { type: "image/jpeg" });
+
+      // Upload using generic account photo upload
+      const uploadRes = await uploadAccountPhoto(file, user.fullName, user.nim);
+
+      if (uploadRes.success) {
+        // Update profile
+        const token = localStorage.getItem("access_token");
+        await fetch("/api/users/update-profile", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ coverPicture: uploadRes.data.url }),
+        });
+
+        toast.success("Foto sampul berhasil diperbarui");
+        await refreshUser();
+        setIsCroppingCover(false);
+        setCoverImageSrc(null);
+        setZoom(1);
+        setRotation(0);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Gagal mengupload foto sampul");
+    } finally {
+      setIsCoverUploading(false);
+    }
+  };
+
+  const handleSocialSave = async () => {
+    setIsSubmittingSocial(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      await fetch("/api/users/update-profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ socialMedia: socialInput }),
+      });
+
+      toast.success("Social media berhasil diperbarui");
+      await refreshUser();
+      setIsSocialDialogOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast.error("Gagal menyimpan data social media");
+    } finally {
+      setIsSubmittingSocial(false);
+    }
+  };
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -238,13 +366,40 @@ export default function ProfilePage() {
         <div className="container mx-auto px-4 max-w-5xl">
           {/* 1. Profile Header Card */}
           <Card className="mb-8 border-none shadow-md overflow-hidden">
-            <div className="h-32 bg-linear-to-r from-primary to-secondary relative">
-              {/* Background decoration */}
-              <div className="absolute inset-0 bg-grid-white/10" />
+            <div className={`h-32 relative bg-gray-200 group overflow-hidden ${isCoverUploading ? 'animate-pulse' : ''}`}>
+              {user.coverPicture ? (
+                <Image
+                  key={user.coverPicture}
+                  src={user.coverPicture}
+                  alt="Cover"
+                  fill
+                  className="object-cover"
+                  priority
+                />
+              ) : (
+                <div className="absolute inset-0 bg-linear-to-r from-primary to-secondary">
+                  <div className="absolute inset-0 bg-grid-white/10" />
+                </div>
+              )}
+
+              <button
+                onClick={() => coverInputRef.current?.click()}
+                className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                title="Ganti Foto Sampul"
+              >
+                <TbCamera className="h-5 w-5" />
+              </button>
+              <input
+                type="file"
+                ref={coverInputRef}
+                className="hidden"
+                onChange={handleCoverSelect}
+                accept="image/*"
+              />
             </div>
             <CardContent className="relative pt-0 px-8 pb-8">
-              <div className="flex flex-col md:flex-row items-start md:items-end gap-6 -mt-12">
-                <Avatar className="w-32 h-32 border-4 border-white shadow-lg">
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-6 -mt-12">
+                <Avatar className="w-32 h-32 border-4 border-white shadow-lg shrink-0">
                   <AvatarImage
                     src={user.profilePicture || ""}
                     alt={user.fullName}
@@ -254,7 +409,7 @@ export default function ProfilePage() {
                   </AvatarFallback>
                 </Avatar>
 
-                <div className="flex-1 space-y-1 mt-4 md:mt-0 md:mb-2">
+                <div className="flex-1 space-y-1 mt-4 md:mt-8">
                   <div className="flex flex-col md:flex-row md:items-center gap-2">
                     <h1 className="text-3xl font-bold text-gray-900">
                       {user.fullName}
@@ -400,6 +555,59 @@ export default function ProfilePage() {
                         {user.bio ||
                           "Belum ada deskripsi diri. Tambahkan di pengaturan profil."}
                       </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Media Sosial */}
+                <Card className="md:col-span-3">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                    <CardTitle className="text-lg font-medium">Media Sosial</CardTitle>
+                    <Button variant="ghost" size="icon" onClick={() => setIsSocialDialogOpen(true)}>
+                      <TbEdit className="h-4 w-4" />
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-4">
+                      {(!user.socialMedia || Object.values(user.socialMedia).every(v => !v || v === "")) && (
+                        <p className="text-muted-foreground text-sm italic">Belum ada media sosial yang ditautkan.</p>
+                      )}
+
+                      {/* @ts-ignore */}
+                      {user.socialMedia?.instagram && (
+                        <a href={user.socialMedia.instagram} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-pink-50 text-pink-600 rounded-full hover:bg-pink-100 transition-colors">
+                          <TbBrandInstagram className="h-5 w-5" />
+                          <span className="font-medium">Instagram</span>
+                        </a>
+                      )}
+                      {/* @ts-ignore */}
+                      {user.socialMedia?.linkedin && (
+                        <a href={user.socialMedia.linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full hover:bg-blue-100 transition-colors">
+                          <TbBrandLinkedin className="h-5 w-5" />
+                          <span className="font-medium">LinkedIn</span>
+                        </a>
+                      )}
+                      {/* @ts-ignore */}
+                      {user.socialMedia?.twitter && (
+                        <a href={user.socialMedia.twitter} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-sky-50 text-sky-500 rounded-full hover:bg-sky-100 transition-colors">
+                          <TbBrandTwitter className="h-5 w-5" />
+                          <span className="font-medium">Twitter / X</span>
+                        </a>
+                      )}
+                      {/* @ts-ignore */}
+                      {user.socialMedia?.github && (
+                        <a href={user.socialMedia.github} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-800 rounded-full hover:bg-gray-200 transition-colors">
+                          <TbBrandGithub className="h-5 w-5" />
+                          <span className="font-medium">GitHub</span>
+                        </a>
+                      )}
+                      {/* @ts-ignore */}
+                      {user.socialMedia?.website && (
+                        <a href={user.socialMedia.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 rounded-full hover:bg-green-100 transition-colors">
+                          <TbWorld className="h-5 w-5" />
+                          <span className="font-medium">Website</span>
+                        </a>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -625,6 +833,103 @@ export default function ProfilePage() {
           <DialogFooter>
             <Button onClick={handleUpdateBio} disabled={isSubmittingBio}>
               {isSubmittingBio ? "Menyimpan..." : "Simpan Perubahan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSocialDialogOpen} onOpenChange={setIsSocialDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Media Sosial</DialogTitle>
+            <DialogDescription>
+              Tautkan akun media sosial agar orang lain dapat lebih mudah menghubungi Anda.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2"><TbBrandInstagram /> Instagram (URL)</Label>
+              <Input placeholder="https://instagram.com/username" value={socialInput.instagram} onChange={e => setSocialInput({ ...socialInput, instagram: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2"><TbBrandLinkedin /> LinkedIn (URL)</Label>
+              <Input placeholder="https://linkedin.com/in/username" value={socialInput.linkedin} onChange={e => setSocialInput({ ...socialInput, linkedin: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2"><TbBrandTwitter /> Twitter / X (URL)</Label>
+              <Input placeholder="https://twitter.com/username" value={socialInput.twitter} onChange={e => setSocialInput({ ...socialInput, twitter: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2"><TbBrandGithub /> GitHub (URL)</Label>
+              <Input placeholder="https://github.com/username" value={socialInput.github} onChange={e => setSocialInput({ ...socialInput, github: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2"><TbWorld /> Website / Portfolio (URL)</Label>
+              <Input placeholder="https://yourwebsite.com" value={socialInput.website} onChange={e => setSocialInput({ ...socialInput, website: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSocialSave} disabled={isSubmittingSocial}>
+              {isSubmittingSocial ? "Menyimpan..." : "Simpan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCroppingCover} onOpenChange={setIsCroppingCover}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Sesuaikan Foto Sampul</DialogTitle>
+            <DialogDescription>
+              Geser dan zoom untuk menyesuaikan tampilan foto sampul profil Anda.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="relative w-full h-80 bg-gray-100 rounded-lg overflow-hidden mt-4">
+            {coverImageSrc && (
+              <Cropper
+                image={coverImageSrc}
+                crop={crop}
+                zoom={zoom}
+                rotation={rotation}
+                aspect={4 / 1}
+                onCropChange={setCrop}
+                onCropComplete={onCropComplete}
+                onZoomChange={setZoom}
+                onRotationChange={setRotation}
+              />
+            )}
+          </div>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Zoom</Label>
+              <Slider
+                value={[zoom]}
+                min={1}
+                max={3}
+                step={0.1}
+                onValueChange={(value) => setZoom(value[0])}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Rotasi</Label>
+              <Slider
+                value={[rotation]}
+                min={0}
+                max={360}
+                step={1}
+                onValueChange={(value) => setRotation(value[0])}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCroppingCover(false)}>
+              Batal
+            </Button>
+            <Button onClick={handleCoverCropConfirm} disabled={isCoverUploading}>
+              {isCoverUploading ? "Mengupload..." : "Simpan Gambar"}
             </Button>
           </DialogFooter>
         </DialogContent>

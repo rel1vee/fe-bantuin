@@ -44,11 +44,12 @@ export const ChatInboxList = () => {
 
           const lastMessageContent = conv.lastMessage?.content || "";
           const displayMessage = getDisplayMessage(lastMessageContent);
+          const isUnread = (conv.unreadCount || 0) > 0;
 
           return (
             <div
               key={conv.id}
-              className="p-3 hover:bg-gray-100 bg-white cursor-pointer transition-colors flex gap-3 items-center"
+              className={`p-3 hover:bg-gray-100 bg-white cursor-pointer transition-colors flex gap-3 items-center ${isUnread ? 'bg-blue-50/50' : ''}`}
               onClick={() => openChatWith(otherParticipant)}
             >
               <Avatar className="h-10 w-10 border">
@@ -57,7 +58,7 @@ export const ChatInboxList = () => {
               </Avatar>
               <div className="flex-1 overflow-hidden">
                 <div className="flex justify-between items-center mb-1">
-                  <h4 className="font-semibold text-xs truncate">
+                  <h4 className={`text-xs truncate ${isUnread ? 'font-bold text-foreground' : 'font-semibold'}`}>
                     {otherParticipant.fullName}
                   </h4>
                   {conv.lastMessage && (
@@ -69,9 +70,16 @@ export const ChatInboxList = () => {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground truncate">
-                  {displayMessage || "Mulai percakapan..."}
-                </p>
+                <div className="flex justify-between items-center gap-2">
+                  <p className={`text-xs truncate flex-1 ${isUnread ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
+                    {displayMessage || "Mulai percakapan..."}
+                  </p>
+                  {isUnread && conv.unreadCount && conv.unreadCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold shrink-0 min-w-[18px] text-center">
+                      {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           );

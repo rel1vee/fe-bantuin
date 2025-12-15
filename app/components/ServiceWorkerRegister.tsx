@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { getCookie } from "cookies-next";
 
 function urlBase64ToUint8Array(base64String: string) {
     const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -37,17 +36,13 @@ export function ServiceWorkerRegister() {
                     // Wait for service worker to be active
                     await navigator.serviceWorker.ready;
 
-                    // Check if user is logged in (has token) before asking for subscription
-                    // This is a rough check; ideally we handle this via AuthContext, 
-                    // but this component is in layout.
-                    const token = getCookie("token");
+                    // Get token from localStorage
+                    const token = localStorage.getItem("access_token");
                     if (!token) return;
 
                     const subscription = await registration.pushManager.getSubscription();
 
                     if (!subscription) {
-                        // Logic to ask for permission could go here, or we proactively ask
-                        // For this task, we'll try to subscribe if not denied
                         if (Notification.permission !== 'denied') {
                             const newSubscription = await registration.pushManager.subscribe({
                                 userVisibleOnly: true,
@@ -56,16 +51,27 @@ export function ServiceWorkerRegister() {
                                 ),
                             });
 
-                            // Send to backend
+                            // Send to backend with Auth header
                             await fetch("/api/notifications/subscribe", {
                                 method: "POST",
                                 headers: {
                                     "Content-Type": "application/json",
+                                    "Authorization": `Bearer ${token}`
                                 },
                                 body: JSON.stringify(newSubscription),
                             });
                             console.log("Subscribed to push notifications");
                         }
+                    } else {
+                        // Resync existing subscription to ensure backend has it
+                        await fetch("/api/notifications/subscribe", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${token}`
+                            },
+                            body: JSON.stringify(subscription),
+                        }).catch(err => console.error("Failed to resync sub", err));
                     }
                 } catch (error) {
                     console.error("Service Worker/Push registration failed:", error);

@@ -32,6 +32,7 @@ export interface Message {
 
 export interface Conversation {
   id: string;
+  unreadCount?: number;
   lastMessage?: {
     content: string;
     senderId: string;
@@ -108,6 +109,44 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     {}
   );
   const activeConversationRef = useRef(activeConversation);
+
+  const markAsRead = async (conversationId: string) => {
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+
+    try {
+      const res = await fetch(`/api/chat/${conversationId}/read`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        console.error("Failed to mark as read:", res.statusText);
+        return;
+      }
+
+      const data = await res.json();
+
+      // Only update local state if API call was successful
+      if (data.success) {
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === conversationId ? { ...c, unreadCount: 0 } : c
+          )
+        );
+      }
+    } catch (e) {
+      console.error("Error marking conversation as read:", e);
+    }
+  };
+
+  useEffect(() => {
+    const total = conversations.reduce(
+      (acc, curr) => acc + (curr.unreadCount || 0),
+      0
+    );
+    setUnreadCount(total);
+  }, [conversations]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -213,9 +252,17 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         // Copy array agar immutable
         const newConvs = [...prevConvs];
 
+        // Hitung unreadCount baru
+        const isCurrentChat = activeConversationRef.current?.id === chatId;
+        let newUnread = newConvs[index].unreadCount || 0;
+        if (!isCurrentChat && message.senderId !== user?.id) {
+          newUnread += 1;
+        }
+
         // Update lastMessage percakapan tersebut
         const updatedConv = {
           ...newConvs[index],
+          unreadCount: newUnread,
           lastMessage: {
             content: message.content,
             senderId: message.senderId,
@@ -226,6 +273,11 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         // Pindahkan ke paling atas (Urutan 0) karena baru aktif
         newConvs.splice(index, 1); // Hapus dari posisi lama
         newConvs.unshift(updatedConv); // Masukkan ke atas
+
+        // Jika chat sedang dibuka, tandai read di backend
+        if (isCurrentChat && message.senderId !== user?.id) {
+          markAsRead(chatId);
+        }
 
         return newConvs;
       });
@@ -323,6 +375,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
     if (existing) {
       setActiveConversation(existing);
+      markAsRead(existing.id);
       if (socket && socket.connected) socket.emit("getHistory", existing.id);
     } else {
       setMessagesCache((prev) => ({ ...prev, new: [] }));
