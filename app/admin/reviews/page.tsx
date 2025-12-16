@@ -4,16 +4,32 @@ import { useEffect, useState } from "react";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
+import Link from "next/link";
 
 interface PendingService {
   id: string;
   title: string;
   description: string;
   images: string[];
-  seller: { id: string; fullName: string; email: string };
-  createdAt: string;
+  category: string;
+  price: number;
+  pricingType?: string;
+  pricePerUnit?: number;
+  seller: { id: string; fullName: string };
 }
+
+const categoryNames: Record<string, string> = {
+  DESIGN: "Desain",
+  DATA: "Data",
+  CODING: "Pemrograman",
+  WRITING: "Penulisan",
+  EVENT: "Acara",
+  TUTOR: "Tutor",
+  TECHNICAL: "Teknis",
+  OTHER: "Lainnya",
+};
 
 const AdminReviewsPage = () => {
   const [services, setServices] = useState<PendingService[]>([]);
@@ -28,7 +44,7 @@ const AdminReviewsPage = () => {
     try {
       const token = localStorage.getItem("access_token");
       const res = await fetch("/api/admin/services/pending", {
-        headers: { Authorization: token || "" },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.success) {
@@ -43,55 +59,21 @@ const AdminReviewsPage = () => {
     }
   };
 
-  const handleApprove = async (id: string) => {
-    if (!confirm("Setujui jasa ini?")) return;
-    try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`/api/admin/services/${id}/approve`, {
-        method: "POST",
-        headers: { Authorization: token || "" },
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert("Jasa disetujui");
-        fetchPending();
-      } else {
-        alert(data.error || "Gagal menyetujui jasa");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Terjadi kesalahan");
-    }
-  };
+  const getPriceDisplay = (service: PendingService) => {
+    const format = (p: number) =>
+      new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        minimumFractionDigits: 0,
+      }).format(p);
 
-  const handleReject = async (id: string) => {
-    const reason = prompt("Alasan penolakan:");
-    if (reason === null) return; // cancelled
-    if (reason.trim().length === 0) {
-      alert("Alasan harus diisi");
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`/api/admin/services/${id}/reject`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token || "",
-        },
-        body: JSON.stringify({ reason }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert("Jasa ditolak");
-        fetchPending();
-      } else {
-        alert(data.error || "Gagal menolak jasa");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Terjadi kesalahan");
+    if (service.pricingType === "FIXED" || !service.pricingType) {
+      return format(service.price);
+    } else if (service.pricingType === "CUSTOM") {
+      return `Mulai ${format(service.price)}`;
+    } else {
+      const unit = service.pricingType.replace("PER_", "").toLowerCase();
+      return `${format(service.pricePerUnit || service.price)} / ${unit}`;
     }
   };
 
@@ -111,14 +93,14 @@ const AdminReviewsPage = () => {
           </div>
         ) : services.length === 0 ? (
           <Card>
-            <CardContent className="py-12 text-center">
-              Tidak ada jasa yang menunggu review.
+            <CardContent className="py-12 text-center text-muted-foreground">
+              Tidak ada jasa yang menunggu review saat ini.
             </CardContent>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {services.map((s) => (
-              <Card key={s.id} className="overflow-hidden">
+              <Card key={s.id} className="overflow-hidden flex flex-col hover:shadow-md transition-shadow">
                 <div className="relative aspect-video w-full bg-gray-100">
                   {s.images?.[0] ? (
                     <Image
@@ -132,26 +114,35 @@ const AdminReviewsPage = () => {
                       <span className="text-4xl">📦</span>
                     </div>
                   )}
+                  <Badge className="absolute top-2 right-2 bg-yellow-500 hover:bg-yellow-600 shadow-sm">
+                    PENDING
+                  </Badge>
                 </div>
-                <CardContent>
-                  <h3 className="font-semibold text-foreground mb-1">
-                    {s.title}
-                  </h3>
-                  <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-                    oleh {s.seller.fullName} •{" "}
-                    {new Date(s.createdAt).toLocaleString()}
-                  </p>
-                  <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
-                    {s.description}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button onClick={() => handleApprove(s.id)}>Setujui</Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => handleReject(s.id)}
-                    >
-                      Tolak
-                    </Button>
+                <CardContent className="flex flex-col flex-1 p-5">
+                  <div className="flex-1">
+                    <Badge variant="secondary" className="mb-2 text-xs font-normal">
+                      {categoryNames[s.category] || s.category}
+                    </Badge>
+                    <h3 className="font-semibold text-lg text-foreground mb-1 line-clamp-1" title={s.title}>
+                      {s.title}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      oleh <span className="font-medium text-foreground">{s.seller.fullName}</span>
+                    </p>
+                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                      {s.description}
+                    </p>
+                  </div>
+
+                  <div className="mt-auto space-y-3 pt-3 border-t">
+                    <p className="font-bold text-primary text-lg">
+                      {getPriceDisplay(s)}
+                    </p>
+                    <Link href={`/admin/reviews/${s.id}`} className="block">
+                      <Button className="w-full">
+                        Lihat Detail & Review
+                      </Button>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>

@@ -127,6 +127,9 @@ const NotificationDropdown = () => {
         if (sub) {
           apiClient.post("/notifications/subscribe", sub)
             .catch(err => console.error("Failed to resync sub:", err));
+        } else {
+          // AUTO SUBSCRIBE
+          handleSubscribe();
         }
       });
     }
@@ -139,6 +142,7 @@ const NotificationDropdown = () => {
 
     try {
       const registration = await navigator.serviceWorker.ready;
+      // Request permission immediately
       const permissionResult = await Notification.requestPermission();
       setPermission(permissionResult);
 
@@ -279,45 +283,24 @@ const NotificationDropdown = () => {
         </ScrollArea>
 
         {/* Footer Actions */}
-        <div className="p-2 border-t mt-auto text-center bg-gray-50 flex flex-col gap-1">
-          {permission === 'denied' ? (
-            <p className="text-xs text-muted-foreground p-2">Notifikasi diblokir browser.</p>
-          ) : isSubscribed ? (
-            <>
-              <Button
-                variant="link"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    await apiClient.post("/notifications/test-push", {});
-                  } catch (error) {
-                    console.error("Test push failed", error);
-                  }
-                }}
-                className="text-blue-600 text-xs w-full"
-              >
-                Tes Notifikasi
-              </Button>
-              <Button
-                variant="link"
-                size="sm"
-                onClick={handleUnsubscribe}
-                className="text-red-500 text-xs w-full hover:text-red-700"
-              >
-                Matikan Push Notifikasi
-              </Button>
-            </>
-          ) : (
+        {isSubscribed && (
+          <div className="p-2 border-t mt-auto text-center bg-gray-50 flex flex-col gap-1">
             <Button
               variant="link"
               size="sm"
-              onClick={handleSubscribe}
-              className="text-primary text-xs w-full"
+              onClick={async () => {
+                try {
+                  await apiClient.post("/notifications/test-push", {});
+                } catch (error) {
+                  console.error("Test push failed", error);
+                }
+              }}
+              className="text-blue-600 text-xs w-full"
             >
-              Aktifkan Push Notifikasi
+              Tes Notifikasi
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -64,6 +64,11 @@ const SellerOrderDetailPage = () => {
   const [showProgressDialog, setShowProgressDialog] = useState(false);
   const [showDeliverDialog, setShowDeliverDialog] = useState(false);
 
+  // Rejection State
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
+
   const [progressTitle, setProgressTitle] = useState("");
   const [progressDesc, setProgressDesc] = useState("");
   const [progressFiles, setProgressFiles] = useState<string[]>([]);
@@ -112,6 +117,37 @@ const SellerOrderDetailPage = () => {
       fetchOrder();
     } catch (e) {
       toast.error("Gagal memulai pekerjaan");
+    }
+  };
+
+  const handleRejectOrder = async () => {
+    if (rejectReason.length < 10) {
+      toast.error("Alasan penolakan minimal 10 karakter");
+      return;
+    }
+    setRejectLoading(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`/api/orders/${order?.id}/cancel/seller`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: rejectReason }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Pesanan ditolak. Dana akan dikembalikan ke Buyer.");
+        setShowRejectDialog(false);
+        fetchOrder();
+      } else {
+        toast.error(data.error || "Gagal menolak pesanan");
+      }
+    } catch (e) {
+      toast.error("Terjadi kesalahan sistem");
+    } finally {
+      setRejectLoading(false);
     }
   };
 
@@ -338,28 +374,37 @@ const SellerOrderDetailPage = () => {
 
           <div className="flex items-center gap-2">
             {order.status === "PAID_ESCROW" && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button size="lg">
-                    <Briefcase className="mr-2 h-4 w-4" /> Mulai Kerjakan
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Mulai Pengerjaan?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Status pesanan akan berubah menjadi "Dikerjakan". Pastikan
-                      Anda sudah siap memulai.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Batal</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleStartWork}>
-                      Ya, Mulai
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowRejectDialog(true)}
+                  className="bg-red-50 text-red-600 hover:bg-red-100 border-red-200 border shadow-none"
+                >
+                  <X className="mr-2 h-4 w-4" /> Tolak
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="lg">
+                      <Briefcase className="mr-2 h-4 w-4" /> Mulai Kerjakan
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Mulai Pengerjaan?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Status pesanan akan berubah menjadi "Dikerjakan". Pastikan
+                        Anda sudah siap memulai.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Batal</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleStartWork}>
+                        Ya, Mulai
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
             )}
 
             {(order.status === "IN_PROGRESS" ||
@@ -578,39 +623,84 @@ const SellerOrderDetailPage = () => {
                     <TabsTrigger value="files">File</TabsTrigger>
                     <TabsTrigger value="chat">Chat</TabsTrigger>
                   </TabsList>
-                  <TabsContent value="files" className="mt-4 space-y-3">
-                    {order.deliveryFiles?.length > 0 ? (
-                      order.deliveryFiles.map((file: string, idx: number) => (
-                        <div
-                          key={idx}
-                          className="p-3 bg-muted/30 border rounded-lg flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <FileText className="h-4 w-4 text-blue-500 shrink-0" />
-                            <span className="text-sm truncate">
-                              Hasil {idx + 1}
-                            </span>
-                          </div>
-                          <a
-                            href={file}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
+                  <TabsContent value="files" className="mt-4 space-y-6">
+                    {/* Buyer Attachments */}
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">File dari Pembeli</h4>
+                      {order.attachments?.length > 0 ? (
+                        <div className="space-y-2">
+                          {order.attachments.map((file: string, idx: number) => (
+                            <div
+                              key={idx}
+                              className="p-3 bg-muted/30 border rounded-lg flex items-center justify-between"
                             >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </a>
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <FileText className="h-4 w-4 text-orange-500 shrink-0" />
+                                <span className="text-sm truncate">
+                                  Attachment {idx + 1}
+                                </span>
+                              </div>
+                              <a
+                                href={file}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </a>
+                            </div>
+                          ))}
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground text-sm">
-                        Belum ada file dikirim
-                      </div>
-                    )}
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          Tidak ada lampiran dari pembeli.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Seller Delivery Files */}
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">File Hasil Kerja</h4>
+                      {order.deliveryFiles?.length > 0 ? (
+                        <div className="space-y-2">
+                          {order.deliveryFiles.map((file: string, idx: number) => (
+                            <div
+                              key={idx}
+                              className="p-3 bg-muted/30 border rounded-lg flex items-center justify-between"
+                            >
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+                                <span className="text-sm truncate">
+                                  Hasil {idx + 1}
+                                </span>
+                              </div>
+                              <a
+                                href={file}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          Belum ada file dikirim.
+                        </p>
+                      )}
+                    </div>
                   </TabsContent>
                   <TabsContent value="chat" className="mt-4">
                     <div className="space-y-3">
@@ -793,6 +883,46 @@ const SellerOrderDetailPage = () => {
                 Batal
               </Button>
               <Button onClick={handleSubmitDeliver}>Kirim</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* REJECT DIALOG */}
+        <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="text-destructive">Tolak Pesanan</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-muted-foreground">
+                Menolak pesanan akan membatalkan transaksi dan mengembalikan dana sepenuhnya ke Pembeli.
+                Tindakan ini tidak dapat dibatalkan.
+              </p>
+              <div className="space-y-2">
+                <Label>Alasan Penolakan</Label>
+                <Textarea
+                  placeholder="Contoh: Saya sedang overload, deskripsi kurang jelas..."
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">Minimal 10 karakter.</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowRejectDialog(false)}
+              >
+                Batal
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleRejectOrder}
+                disabled={rejectLoading || rejectReason.length < 10}
+              >
+                {rejectLoading ? "Memproses..." : "Tolak Pesanan"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
