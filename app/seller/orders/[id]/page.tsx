@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChat } from "@/contexts/ChatContext";
 import SellerLayout from "@/components/layouts/SellerLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,13 +34,29 @@ import {
   Briefcase,
   Plus,
   RefreshCcw,
+  Loader2,
+  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { uploadSellerOrderPhoto } from "@/lib/upload";
+import { toast } from "sonner";
+import { AlertDialog } from "@radix-ui/react-alert-dialog";
+import {
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const SellerOrderDetailPage = () => {
   const params = useParams();
   const router = useRouter();
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading, user } = useAuth();
+  const { openChatWith } = useChat();
 
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -47,11 +64,21 @@ const SellerOrderDetailPage = () => {
   const [showProgressDialog, setShowProgressDialog] = useState(false);
   const [showDeliverDialog, setShowDeliverDialog] = useState(false);
 
+  // Rejection State
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectLoading, setRejectLoading] = useState(false);
+
   const [progressTitle, setProgressTitle] = useState("");
   const [progressDesc, setProgressDesc] = useState("");
-  const [progressFile, setProgressFile] = useState("");
+  const [progressFiles, setProgressFiles] = useState<string[]>([]);
+  const [progressUploading, setProgressUploading] = useState(false);
+  const progressFileInputRef = useRef<HTMLInputElement>(null);
+
   const [deliveryNote, setDeliveryNote] = useState("");
-  const [deliveryFile, setDeliveryFile] = useState("");
+  const [deliveryFiles, setDeliveryFiles] = useState<string[]>([]);
+  const [deliveryUploading, setDeliveryUploading] = useState(false);
+  const deliveryFileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -79,17 +106,80 @@ const SellerOrderDetailPage = () => {
   }, [authLoading, isAuthenticated, fetchOrder, router]);
 
   const handleStartWork = async () => {
-    if (!confirm("Mulai kerjakan pesanan ini?")) return;
+    // Tidak perlu confirm() di sini karena sudah dihandle AlertDialog di UI
     try {
       const token = localStorage.getItem("access_token");
       await fetch(`/api/orders/${order?.id}/start`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
+      toast.success("Pekerjaan dimulai! Semangat 💪");
       fetchOrder();
     } catch (e) {
-      alert("Gagal memulai pekerjaan");
+      toast.error("Gagal memulai pekerjaan");
     }
+  };
+
+  const handleRejectOrder = async () => {
+    if (rejectReason.length < 10) {
+      toast.error("Alasan penolakan minimal 10 karakter");
+      return;
+    }
+    setRejectLoading(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`/api/orders/${order?.id}/cancel/seller`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: rejectReason }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Pesanan ditolak. Dana akan dikembalikan ke Buyer.");
+        setShowRejectDialog(false);
+        fetchOrder();
+      } else {
+        toast.error(data.error || "Gagal menolak pesanan");
+      }
+    } catch (e) {
+      toast.error("Terjadi kesalahan sistem");
+    } finally {
+      setRejectLoading(false);
+    }
+  };
+
+  const handleProgressFileSelect = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user) return;
+
+    setProgressUploading(true);
+
+    try {
+      const orderName = `order-${order?.id || Date.now()}`;
+      const uploadPromises = Array.from(files).map((file) =>
+        uploadSellerOrderPhoto(file, user.fullName, orderName, user.nim)
+      );
+
+      const results = await Promise.all(uploadPromises);
+      const newUrls = results.map((result) => result.data.url);
+      setProgressFiles((prev) => [...prev, ...newUrls]);
+    } catch (err: any) {
+      alert(err.message || "Gagal mengupload file");
+    } finally {
+      setProgressUploading(false);
+      if (progressFileInputRef.current) {
+        progressFileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleRemoveProgressFile = (index: number) => {
+    setProgressFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmitProgress = async () => {
@@ -104,14 +194,49 @@ const SellerOrderDetailPage = () => {
         body: JSON.stringify({
           title: progressTitle,
           description: progressDesc,
-          images: progressFile ? [progressFile] : [],
+          images: progressFiles,
         }),
       });
+      toast.success("Progress berhasil diupdate");
       setShowProgressDialog(false);
+      setProgressTitle("");
+      setProgressDesc("");
+      setProgressFiles([]);
       fetchOrder();
     } catch (e) {
-      alert("Gagal update progress");
+      toast.error("Gagal update progress");
     }
+  };
+
+  const handleDeliveryFileSelect = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user) return;
+
+    setDeliveryUploading(true);
+
+    try {
+      const orderName = `order-${order?.id || Date.now()}`;
+      const uploadPromises = Array.from(files).map((file) =>
+        uploadSellerOrderPhoto(file, user.fullName, orderName, user.nim)
+      );
+
+      const results = await Promise.all(uploadPromises);
+      const newUrls = results.map((result) => result.data.url);
+      setDeliveryFiles((prev) => [...prev, ...newUrls]);
+    } catch (err: any) {
+      alert(err.message || "Gagal mengupload file");
+    } finally {
+      setDeliveryUploading(false);
+      if (deliveryFileInputRef.current) {
+        deliveryFileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleRemoveDeliveryFile = (index: number) => {
+    setDeliveryFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmitDeliver = async () => {
@@ -125,20 +250,25 @@ const SellerOrderDetailPage = () => {
         },
         body: JSON.stringify({
           deliveryNote,
-          deliveryFiles: deliveryFile ? [deliveryFile] : [],
+          deliveryFiles: deliveryFiles,
         }),
       });
       setShowDeliverDialog(false);
+      setDeliveryNote("");
+      setDeliveryFiles([]);
       fetchOrder();
     } catch (e) {
       alert("Gagal mengirim hasil");
     }
   };
 
-
   const isValidImageUrl = (url: string) => {
-  return url?.startsWith('http://') || url?.startsWith('https://') || url?.startsWith('/');
-};
+    return (
+      url?.startsWith("http://") ||
+      url?.startsWith("https://") ||
+      url?.startsWith("/")
+    );
+  };
 
   if (loading || authLoading)
     return (
@@ -159,7 +289,7 @@ const SellerOrderDetailPage = () => {
       WAITING_PAYMENT: 20,
       PAID_ESCROW: 35,
       IN_PROGRESS: 50,
-      REVISION: 65, 
+      REVISION: 65,
       DELIVERED: 80,
       COMPLETED: 100,
       CANCELLED: 0,
@@ -167,10 +297,10 @@ const SellerOrderDetailPage = () => {
     return map[status] || 0;
   };
 
-  const isRevisionStage = order.status === 'REVISION';
+  const isRevisionStage = order.status === "REVISION";
   const hasRevisionHistory = order.revisionCount > 0;
   const isAfterRevision = ["DELIVERED", "COMPLETED"].includes(order.status);
-  
+
   const trackingStages = [
     {
       id: 1,
@@ -195,13 +325,17 @@ const SellerOrderDetailPage = () => {
       ),
       icon: Sparkles,
     },
-    ...(hasRevisionHistory || isRevisionStage ? [{
-        id: 3.5,
-        label: `Revisi Diminta (${order.revisionCount}x)`,
-        date: order.status === 'REVISION' ? order.deliveredAt : undefined, 
-        completed: isRevisionStage || isAfterRevision,
-        icon: RefreshCcw,
-    }] : []),
+    ...(hasRevisionHistory || isRevisionStage
+      ? [
+        {
+          id: 3.5,
+          label: `Revisi Diminta (${order.revisionCount}x)`,
+          date: order.status === "REVISION" ? order.deliveredAt : undefined,
+          completed: isRevisionStage || isAfterRevision,
+          icon: RefreshCcw,
+        },
+      ]
+      : []),
     {
       id: 4,
       label: "Dikirim",
@@ -240,37 +374,71 @@ const SellerOrderDetailPage = () => {
 
           <div className="flex items-center gap-2">
             {order.status === "PAID_ESCROW" && (
-              <Button onClick={handleStartWork} size="lg">
-                <Briefcase className="mr-2 h-4 w-4" /> Mulai Kerjakan
-              </Button>
-            )}
-            
-            {(order.status === "IN_PROGRESS" || order.status === "REVISION") && (
               <>
                 <Button
-                  variant="outline"
-                  onClick={() => setShowProgressDialog(true)}
+                  variant="destructive"
+                  onClick={() => setShowRejectDialog(true)}
+                  className="bg-red-50 text-red-600 hover:bg-red-100 border-red-200 border shadow-none"
                 >
-                  <Plus className="mr-2 h-4 w-4" /> Update Progress
+                  <X className="mr-2 h-4 w-4" /> Tolak
                 </Button>
-                <Button onClick={() => setShowDeliverDialog(true)}>
-                  <Send className="mr-2 h-4 w-4" /> Kirim Hasil
-                  {order.status === "REVISION" && (
-                    <Badge variant="secondary" className="bg-white/30 text-white ml-1">Revisi</Badge>
-                  )}
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="lg">
+                      <Briefcase className="mr-2 h-4 w-4" /> Mulai Kerjakan
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Mulai Pengerjaan?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Status pesanan akan berubah menjadi "Dikerjakan". Pastikan
+                        Anda sudah siap memulai.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Batal</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleStartWork}>
+                        Ya, Mulai
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </>
             )}
-            
-            {order.status === "REVISION" && (
-                <Badge
+
+            {(order.status === "IN_PROGRESS" ||
+              order.status === "REVISION") && (
+                <>
+                  <Button
                     variant="outline"
-                    className="text-xs py-2 px-4 bg-orange-100 text-orange-700 border-orange-300 ml-2"
-                >
-                    Revisi ke-{order.revisionCount} diminta
-                </Badge>
+                    onClick={() => setShowProgressDialog(true)}
+                  >
+                    <Plus className="mr-2 h-4 w-4" /> Update Progress
+                  </Button>
+                  <Button onClick={() => setShowDeliverDialog(true)}>
+                    <Send className="mr-2 h-4 w-4" /> Kirim Hasil
+                    {order.status === "REVISION" && (
+                      <Badge
+                        variant="secondary"
+                        className="bg-white/30 text-white ml-1"
+                      >
+                        Revisi
+                      </Badge>
+                    )}
+                  </Button>
+                </>
+              )}
+
+            {order.status === "REVISION" && (
+              <Badge
+                variant="outline"
+                className="text-xs py-2 px-4 bg-orange-100 text-orange-700 border-orange-300 ml-2"
+              >
+                Revisi ke-{order.revisionCount} diminta
+              </Badge>
             )}
-            
+
             <Badge
               variant="outline"
               className="text-base py-2 px-4 bg-primary/10 text-primary border-primary/20 ml-2"
@@ -304,10 +472,10 @@ const SellerOrderDetailPage = () => {
                   {trackingStages.map((stage, idx) => {
                     const Icon = stage.icon;
                     const isCompleted = stage.completed;
-                    
+
                     const statusClass = isCompleted
-                              ? "border-primary text-primary"
-                              : "border-muted text-muted-foreground";
+                      ? "border-primary text-primary"
+                      : "border-muted text-muted-foreground";
 
                     return (
                       <div key={stage.id} className="flex gap-4 items-start">
@@ -318,11 +486,10 @@ const SellerOrderDetailPage = () => {
                         </div>
                         <div className="pt-2">
                           <h4
-                            className={`font-medium ${
-                              isCompleted
-                                ? "text-foreground"
-                                : "text-muted-foreground"
-                            }`}
+                            className={`font-medium ${isCompleted
+                              ? "text-foreground"
+                              : "text-muted-foreground"
+                              }`}
                           >
                             {stage.label}
                           </h4>
@@ -331,15 +498,15 @@ const SellerOrderDetailPage = () => {
                               {new Date(stage.date).toLocaleDateString("id-ID")}
                             </p>
                           )}
-                          {stage.id === 3.5 && order.status === 'REVISION' && (
-                             <p className="text-xs text-orange-600 font-medium">
-                               Menunggu Anda Menyerahkan Hasil Revisi
-                             </p>
+                          {stage.id === 3.5 && order.status === "REVISION" && (
+                            <p className="text-xs text-orange-600 font-medium">
+                              Menunggu Anda Menyerahkan Hasil Revisi
+                            </p>
                           )}
-                          {stage.id === 3.5 && order.status === 'DELIVERED' && (
-                             <p className="text-xs text-green-600 font-medium">
-                               Hasil Revisi Dikirim Ulang
-                             </p>
+                          {stage.id === 3.5 && order.status === "DELIVERED" && (
+                            <p className="text-xs text-green-600 font-medium">
+                              Hasil Revisi Dikirim Ulang
+                            </p>
                           )}
                         </div>
                       </div>
@@ -372,18 +539,18 @@ const SellerOrderDetailPage = () => {
                       {log.images?.length > 0 && (
                         <div className="flex gap-2">
                           {log.images.map((img: string, i: number) => {
-                            const isUrlValid = isValidImageUrl(img); 
+                            const isUrlValid = isValidImageUrl(img);
 
                             return (
                               <a
-                                href={isUrlValid ? img : '#'} 
+                                href={isUrlValid ? img : "#"}
                                 target="_blank"
                                 key={i}
                                 className="block h-16 w-16 relative rounded overflow-hidden border"
                               >
                                 {isUrlValid ? (
                                   <Image
-                                    src={img} 
+                                    src={img}
                                     alt={`Progress ${i + 1}`}
                                     fill
                                     className="object-cover"
@@ -403,29 +570,33 @@ const SellerOrderDetailPage = () => {
                 </CardContent>
               </Card>
             )}
-            
+
             {order.revisionNotes && order.revisionNotes.length > 0 && (
               <Card className="border-2 border-orange-400">
-                  <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-orange-700">
-                         <RefreshCcw className="h-5 w-5" /> Riwayat Revisi ({order.revisionNotes.length})
-                      </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                      {order.revisionNotes.map((note: string, index: number) => (
-                          <div key={index} className="p-4 rounded-lg border border-orange-200 bg-orange-50/50">
-                              <h4 className="font-semibold text-sm text-orange-700 mb-2">
-                                  Permintaan Revisi ke-{index + 1}
-                              </h4>
-                              <div className="text-sm text-foreground whitespace-pre-wrap border-l-2 border-orange-400 pl-3">
-                                  {note}
-                              </div>
-                          </div>
-                      ))}
-                      <p className="text-xs text-muted-foreground mt-2">
-                          Total Jatah Revisi: {order.maxRevisions}x
-                      </p>
-                  </CardContent>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-orange-700">
+                    <RefreshCcw className="h-5 w-5" /> Riwayat Revisi (
+                    {order.revisionNotes.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {order.revisionNotes.map((note: string, index: number) => (
+                    <div
+                      key={index}
+                      className="p-4 rounded-lg border border-orange-200 bg-orange-50/50"
+                    >
+                      <h4 className="font-semibold text-sm text-orange-700 mb-2">
+                        Permintaan Revisi ke-{index + 1}
+                      </h4>
+                      <div className="text-sm text-foreground whitespace-pre-wrap border-l-2 border-orange-400 pl-3">
+                        {note}
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Total Jatah Revisi: {order.maxRevisions}x
+                  </p>
+                </CardContent>
               </Card>
             )}
 
@@ -452,43 +623,106 @@ const SellerOrderDetailPage = () => {
                     <TabsTrigger value="files">File</TabsTrigger>
                     <TabsTrigger value="chat">Chat</TabsTrigger>
                   </TabsList>
-                  <TabsContent value="files" className="mt-4 space-y-3">
-                    {order.deliveryFiles?.length > 0 ? (
-                      order.deliveryFiles.map((file: string, idx: number) => (
-                        <div
-                          key={idx}
-                          className="p-3 bg-muted/30 border rounded-lg flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-2 overflow-hidden">
-                            <FileText className="h-4 w-4 text-blue-500 shrink-0" />
-                            <span className="text-sm truncate">
-                              Hasil {idx + 1}
-                            </span>
-                          </div>
-                          <a
-                            href={file}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
+                  <TabsContent value="files" className="mt-4 space-y-6">
+                    {/* Buyer Attachments */}
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">File dari Pembeli</h4>
+                      {order.attachments?.length > 0 ? (
+                        <div className="space-y-2">
+                          {order.attachments.map((file: string, idx: number) => (
+                            <div
+                              key={idx}
+                              className="p-3 bg-muted/30 border rounded-lg flex items-center justify-between"
                             >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </a>
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <FileText className="h-4 w-4 text-orange-500 shrink-0" />
+                                <span className="text-sm truncate">
+                                  Attachment {idx + 1}
+                                </span>
+                              </div>
+                              <a
+                                href={file}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </a>
+                            </div>
+                          ))}
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground text-sm">
-                        Belum ada file dikirim
-                      </div>
-                    )}
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          Tidak ada lampiran dari pembeli.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Seller Delivery Files */}
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">File Hasil Kerja</h4>
+                      {order.deliveryFiles?.length > 0 ? (
+                        <div className="space-y-2">
+                          {order.deliveryFiles.map((file: string, idx: number) => (
+                            <div
+                              key={idx}
+                              className="p-3 bg-muted/30 border rounded-lg flex items-center justify-between"
+                            >
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+                                <span className="text-sm truncate">
+                                  Hasil {idx + 1}
+                                </span>
+                              </div>
+                              <a
+                                href={file}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          Belum ada file dikirim.
+                        </p>
+                      )}
+                    </div>
                   </TabsContent>
                   <TabsContent value="chat" className="mt-4">
-                    <div className="bg-muted/30 rounded-lg p-4 text-center text-sm text-muted-foreground min-h-[150px] flex flex-col items-center justify-center">
-                      <p>Fitur Chat segera hadir.</p>
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        Hubungi pembeli untuk komunikasi lebih lanjut mengenai pesanan ini.
+                      </p>
+                      <Button
+                        className="w-full"
+                        onClick={() => {
+                          if (order?.buyer) {
+                            openChatWith({
+                              id: order.buyer.id,
+                              fullName: order.buyer.fullName,
+                              profilePicture: order.buyer.profilePicture || "",
+                              major: order.buyer.major || ""
+                            });
+                          }
+                        }}
+                      >
+                        <Send className="mr-2 h-4 w-4" />
+                        Buka Chat dengan {order?.buyer?.fullName || 'Pembeli'}
+                      </Button>
                     </div>
                   </TabsContent>
                 </Tabs>
@@ -533,12 +767,42 @@ const SellerOrderDetailPage = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Lampiran (Link)</Label>
+                <Label>Lampiran</Label>
                 <Input
-                  placeholder="https://..."
-                  value={progressFile}
-                  onChange={(e) => setProgressFile(e.target.value)}
+                  ref={progressFileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx"
+                  onChange={handleProgressFileSelect}
+                  disabled={progressUploading}
                 />
+                {progressUploading && (
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                    Mengupload...
+                  </div>
+                )}
+                {progressFiles.length > 0 && (
+                  <div className="space-y-1 mt-2">
+                    {progressFiles.map((url, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded"
+                      >
+                        <span className="truncate flex-1">{url}</span>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveProgressFile(index)}
+                          className="h-6 w-6"
+                        >
+                          <X className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>
@@ -558,7 +822,9 @@ const SellerOrderDetailPage = () => {
             <DialogHeader>
               <DialogTitle>
                 Kirim Hasil Akhir
-                {order.status === "REVISION" && <span className="text-orange-600"> (Revisi)</span>}
+                {order.status === "REVISION" && (
+                  <span className="text-orange-600"> (Revisi)</span>
+                )}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
@@ -571,12 +837,42 @@ const SellerOrderDetailPage = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Link File (Google Drive/Dropbox)</Label>
+                <Label>File Hasil</Label>
                 <Input
-                  placeholder="https://..."
-                  value={deliveryFile}
-                  onChange={(e) => setDeliveryFile(e.target.value)}
+                  ref={deliveryFileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx,.zip,.rar"
+                  onChange={handleDeliveryFileSelect}
+                  disabled={deliveryUploading}
                 />
+                {deliveryUploading && (
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                    Mengupload...
+                  </div>
+                )}
+                {deliveryFiles.length > 0 && (
+                  <div className="space-y-1 mt-2">
+                    {deliveryFiles.map((url, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded"
+                      >
+                        <span className="truncate flex-1">{url}</span>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveDeliveryFile(index)}
+                          className="h-6 w-6"
+                        >
+                          <X className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>
@@ -587,6 +883,46 @@ const SellerOrderDetailPage = () => {
                 Batal
               </Button>
               <Button onClick={handleSubmitDeliver}>Kirim</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* REJECT DIALOG */}
+        <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="text-destructive">Tolak Pesanan</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-muted-foreground">
+                Menolak pesanan akan membatalkan transaksi dan mengembalikan dana sepenuhnya ke Pembeli.
+                Tindakan ini tidak dapat dibatalkan.
+              </p>
+              <div className="space-y-2">
+                <Label>Alasan Penolakan</Label>
+                <Textarea
+                  placeholder="Contoh: Saya sedang overload, deskripsi kurang jelas..."
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">Minimal 10 karakter.</p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowRejectDialog(false)}
+              >
+                Batal
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleRejectOrder}
+                disabled={rejectLoading || rejectReason.length < 10}
+              >
+                {rejectLoading ? "Memproses..." : "Tolak Pesanan"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

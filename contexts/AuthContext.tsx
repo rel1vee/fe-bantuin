@@ -14,6 +14,8 @@ interface User {
   email: string;
   fullName: string;
   profilePicture: string | null;
+  coverPicture?: string | null;
+  socialMedia?: any | null;
   isSeller: boolean;
   isVerified: boolean;
   major: string | null;
@@ -24,9 +26,8 @@ interface User {
   avgRating: number;
   totalReviews: number;
   totalOrdersCompleted: number;
-  role?: 'USER' | 'SELLER' | 'ADMIN';
+  role: "USER" | "SELLER" | "ADMIN";
 }
-
 
 interface AuthContextType {
   user: User | null;

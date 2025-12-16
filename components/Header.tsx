@@ -143,6 +143,12 @@ const Header = () => {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem className="cursor-pointer" asChild>
+                    <Link href="/profile" className="flex items-center w-full">
+                      <FiUser className="mr-2 h-4 w-4" />{" "}
+                      <span>Profil Saya</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer" asChild>
                     <Link
                       href="/buyer/dashboard"
                       className="flex items-center w-full"
@@ -169,17 +175,25 @@ const Header = () => {
           )}
         </div>
 
-        {/* Mobile Menu Toggle */}
-        <button
-          className="md:hidden p-2 text-primary"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        >
-          {mobileMenuOpen ? (
-            <HiX className="w-6 h-6" />
-          ) : (
-            <HiMenu className="w-6 h-6" />
+        {/* Mobile Actions */}
+        <div className="md:hidden flex items-center gap-3">
+          {isAuthenticated && user && (
+            <>
+              <NotificationDropdown />
+              <InboxDropdown />
+            </>
           )}
-        </button>
+          <button
+            className="p-2 text-primary"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? (
+              <HiX className="w-6 h-6" />
+            ) : (
+              <HiMenu className="w-6 h-6" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Menu */}
@@ -249,6 +263,13 @@ const Header = () => {
                   <Button className="w-full">
                     <TbTools className="text-white" />
                     <Link href="/seller/dashboard">Jadi Penyedia</Link>
+                  </Button>
+
+                  <Button variant="ghost" className="w-full justify-start" asChild>
+                    <Link href="/profile">
+                      <FiUser className="mr-2 h-4 w-4" />
+                      Profil Saya
+                    </Link>
                   </Button>
 
                   <Button variant="ghost" className="w-full justify-start">

@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { SERVICE_CATEGORIES_LIST } from "@/lib/constants";
 
 interface ServiceFiltersProps {
   onFilterChange: (filters: FilterState) => void;
@@ -27,16 +28,7 @@ export interface FilterState {
   sortBy: string;
 }
 
-const categories = [
-  { value: "DESIGN", label: "Desain" },
-  { value: "DATA", label: "Data" },
-  { value: "CODING", label: "Pemrograman" },
-  { value: "WRITING", label: "Penulisan" },
-  { value: "EVENT", label: "Acara" },
-  { value: "TUTOR", label: "Tutor" },
-  { value: "TECHNICAL", label: "Teknis" },
-  { value: "OTHER", label: "Lainnya" },
-];
+
 
 const ServiceFilters = ({ onFilterChange, onSearch }: ServiceFiltersProps) => {
   const [filters, setFilters] = useState<FilterState>({
@@ -122,7 +114,7 @@ const ServiceFilters = ({ onFilterChange, onSearch }: ServiceFiltersProps) => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Semua Kategori</SelectItem>
-            {categories.map((cat) => (
+            {SERVICE_CATEGORIES_LIST.map((cat) => (
               <SelectItem key={cat.value} value={cat.value}>
                 {cat.label}
               </SelectItem>

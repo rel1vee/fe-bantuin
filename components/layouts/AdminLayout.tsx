@@ -23,7 +23,8 @@ import {
   TbLogout,
   TbMenu2,
   TbChevronRight,
-  TbFileInvoice,
+  TbLayoutDashboard,
+  TbClipboard,
   TbUsers,
   TbCpu,
   TbFlag,
@@ -65,6 +66,8 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   }
 
   const menuItems: MenuItem[] = [
+    { icon: TbClipboard, label: "Review", href: "/admin/reviews" },
+    { icon: TbLayoutDashboard, label: "Dashboard", href: "/admin/dashboard" },
     { icon: TbWallet, label: "Penarikan Dana", href: "/admin/payouts" },
     { icon: TbFlag, label: "Laporan Masalah", href: "/admin/reports" },
     { icon: TbUsers, label: "Pengguna", href: "/admin/users" },
@@ -97,8 +100,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
               href="/"
               className="flex items-center gap-1.5 font-medium text-muted-foreground hover:text-primary transition-colors"
             >
-              <TbLockAccess className="h-3.5 w-3.5" />
-              <span>Dashboard</span>
+              <span>Home</span>
             </Link>
           </li>
           {displaySegments.map((segment, index) => {

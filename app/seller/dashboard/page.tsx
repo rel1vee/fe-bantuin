@@ -106,14 +106,25 @@ const SellerDashboardPage = () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Aksi Cepat</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Button className="w-full justify-center">
-            <TbPlus /> Tambah Jasa Baru
+          <Button
+            className="w-full justify-center"
+            onClick={() => router.push("/seller/services")}
+          >
+            <TbPlus className="mr-2" /> Tambah Jasa Baru
           </Button>
-          <Button variant="outline" className="w-full justify-center">
-            <TbShoppingCart /> Lihat Pesanan
+          <Button
+            variant="outline"
+            className="w-full justify-center"
+            onClick={() => router.push("/seller/orders")}
+          >
+            <TbShoppingCart className="mr-2" /> Lihat Pesanan
           </Button>
-          <Button variant="outline" className="w-full justify-center">
-            <TbChartLine /> Lihat Statistik
+          <Button
+            variant="outline"
+            className="w-full justify-center"
+            onClick={() => router.push("/seller/stats")}
+          >
+            <TbChartLine className="mr-2" /> Lihat Statistik
           </Button>
         </div>
       </div>

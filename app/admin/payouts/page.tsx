@@ -36,6 +36,9 @@ interface PayoutRequest {
     accountNumber: string;
     accountName: string;
   };
+  wallet: {
+    balance: number;
+  };
 }
 
 const AdminPayoutsPage = () => {
@@ -183,6 +186,14 @@ const AdminPayoutsPage = () => {
             </div>
           </div>
 
+          {/* Wallet Info - Compact */}
+          <div className="pl-5 pt-2 border-t border-border/50">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Saldo User Saat Ini:</p>
+                <p className="text-lg font-bold text-green-600">
+                    {formatCurrency(payout.wallet.balance)}
+                </p>
+            </div>
+
           {/* Account Info - Compact */}
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
@@ -253,7 +264,7 @@ const AdminPayoutsPage = () => {
 
   return (
     <AdminLayout>
-      <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="space-y-6">
         {/* Header */}
         <div className="space-y-2">
           <div className="flex items-center gap-3">

@@ -1,0 +1,16 @@
+{
+    "name": "Bantuin: Marketplace Jasa Mahasiswa",
+    "short_name": "Bantuin",
+    "description": "Platform marketplace jasa yang menghubungkan mahasiswa UIN Suska Riau dengan peluang kerja freelance dan proyek akademik.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#ffffff",
+    "icons": [
+        {
+            "src": "/logo.svg",
+            "sizes": "any",
+            "type": "image/svg+xml"
+        }
+    ]
+}

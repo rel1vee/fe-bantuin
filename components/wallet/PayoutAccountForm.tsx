@@ -13,7 +13,14 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { TbPlus, TbCreditCard } from "react-icons/tb";
+import { TbCreditCard } from "react-icons/tb";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export interface PayoutAccountFormData {
   bankName: string;
@@ -27,7 +34,26 @@ interface PayoutAccountFormProps {
   onSuccess: () => void;
 }
 
-// Menggunakan Arrow Function
+// Data bank dan e-wallet
+const PAYMENT_PROVIDERS = [
+  // Bank
+  { value: "BCA", label: "BCA", type: "bank", logo: "🏦" },
+  { value: "Mandiri", label: "Mandiri", type: "bank", logo: "🏦" },
+  { value: "BNI", label: "BNI", type: "bank", logo: "🏦" },
+  { value: "BRI", label: "BRI", type: "bank", logo: "🏦" },
+  { value: "Bank Riau Kepri", label: "Bank Riau Kepri", type: "bank", logo: "🏦" },
+  { value: "CIMB Niaga", label: "CIMB Niaga", type: "bank", logo: "🏦" },
+  { value: "Permata Bank", label: "Permata Bank", type: "bank", logo: "🏦" },
+  { value: "Danamon", label: "Danamon", type: "bank", logo: "🏦" },
+  { value: "BSI", label: "BSI (Bank Syariah Indonesia)", type: "bank", logo: "🏦" },
+  // E-Wallet
+  { value: "GoPay", label: "GoPay", type: "ewallet", logo: "💳" },
+  { value: "OVO", label: "OVO", type: "ewallet", logo: "💳" },
+  { value: "Dana", label: "Dana", type: "ewallet", logo: "💳" },
+  { value: "ShopeePay", label: "ShopeePay", type: "ewallet", logo: "💳" },
+  { value: "LinkAja", label: "LinkAja", type: "ewallet", logo: "💳" },
+];
+
 const PayoutAccountForm = ({
   open,
   onOpenChange,
@@ -46,9 +72,7 @@ const PayoutAccountForm = ({
     setError("");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleSubmit = async () => {
     if (!formData.bankName || !formData.accountName || !formData.accountNumber) {
       setError("Semua field wajib diisi");
       return;
@@ -84,53 +108,112 @@ const PayoutAccountForm = ({
     }
   };
 
+  const selectedProvider = PAYMENT_PROVIDERS.find(
+    (p) => p.value === formData.bankName
+  );
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="max-h-[80vh]">
         <DrawerHeader>
           <DrawerTitle className="flex items-center gap-2">
-            <TbCreditCard /> Tambah Rekening Bank
+            <TbCreditCard /> Tambah Metode Penarikan
           </DrawerTitle>
           <DrawerDescription>
-            Rekening ini akan digunakan untuk penarikan dana.
+            Pilih bank atau e-wallet untuk penarikan dana Anda.
           </DrawerDescription>
         </DrawerHeader>
 
-        <form onSubmit={handleSubmit} className="px-4 overflow-y-auto">
+        <div className="px-4 overflow-y-auto">
           <div className="space-y-4 pb-6">
-            {/* Bank Name */}
+            {/* Bank/E-Wallet Selection */}
             <div className="space-y-2">
-              <Label htmlFor="bankName">Nama Bank</Label>
-              <Input
-                id="bankName"
+              <Label htmlFor="bankName">Pilih Bank atau E-Wallet</Label>
+              <Select
                 value={formData.bankName}
-                onChange={(e) => handleChange("bankName", e.target.value)}
-                placeholder="Contoh: BNI, Mandiri, Bank Riau Kepri"
-                required
-              />
+                onValueChange={(value) => handleChange("bankName", value)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Pilih metode penarikan">
+                    {selectedProvider && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{selectedProvider.logo}</span>
+                        <span>{selectedProvider.label}</span>
+                      </div>
+                    )}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Bank Section */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                    BANK
+                  </div>
+                  {PAYMENT_PROVIDERS.filter((p) => p.type === "bank").map(
+                    (provider) => (
+                      <SelectItem key={provider.value} value={provider.value}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{provider.logo}</span>
+                          <span>{provider.label}</span>
+                        </div>
+                      </SelectItem>
+                    )
+                  )}
+
+                  {/* E-Wallet Section */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2 border-t">
+                    E-WALLET
+                  </div>
+                  {PAYMENT_PROVIDERS.filter((p) => p.type === "ewallet").map(
+                    (provider) => (
+                      <SelectItem key={provider.value} value={provider.value}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{provider.logo}</span>
+                          <span>{provider.label}</span>
+                        </div>
+                      </SelectItem>
+                    )
+                  )}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Account Name */}
             <div className="space-y-2">
-              <Label htmlFor="accountName">Nama Pemilik Rekening</Label>
+              <Label htmlFor="accountName">
+                {selectedProvider?.type === "ewallet"
+                  ? "Nama Pemilik Akun"
+                  : "Nama Pemilik Rekening"}
+              </Label>
               <Input
                 id="accountName"
                 value={formData.accountName}
                 onChange={(e) => handleChange("accountName", e.target.value)}
-                placeholder="Sesuai nama di buku tabungan"
+                placeholder={
+                  selectedProvider?.type === "ewallet"
+                    ? "Nama sesuai akun e-wallet"
+                    : "Sesuai nama di buku tabungan"
+                }
                 required
               />
             </div>
 
             {/* Account Number */}
             <div className="space-y-2">
-              <Label htmlFor="accountNumber">Nomor Rekening</Label>
+              <Label htmlFor="accountNumber">
+                {selectedProvider?.type === "ewallet"
+                  ? "Nomor HP/Akun"
+                  : "Nomor Rekening"}
+              </Label>
               <Input
                 id="accountNumber"
-                type="number"
+                type="tel"
                 value={formData.accountNumber}
                 onChange={(e) => handleChange("accountNumber", e.target.value)}
-                placeholder="Contoh: 1234567890"
+                placeholder={
+                  selectedProvider?.type === "ewallet"
+                    ? "Contoh: 08123456789"
+                    : "Contoh: 1234567890"
+                }
                 required
               />
             </div>
@@ -142,11 +225,11 @@ const PayoutAccountForm = ({
               </div>
             )}
           </div>
-        </form>
+        </div>
 
         <DrawerFooter>
           <Button onClick={handleSubmit} disabled={loading} className="w-full">
-            {loading ? "Menyimpan..." : "Simpan Rekening"}
+            {loading ? "Menyimpan..." : "Simpan Metode Penarikan"}
           </Button>
           <DrawerClose asChild>
             <Button variant="outline" className="w-full">

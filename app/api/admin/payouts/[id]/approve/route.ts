@@ -17,7 +17,10 @@ export async function POST(
     // FORWARD to NestJS: POST /admin/payouts/:id/approve
     const response = await fetch(`${API_URL}/admin/payouts/${id}/approve`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: token },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token.startsWith("Bearer ") ? token : `Bearer ${token}`,
+      },
     });
 
     const data = await response.json();

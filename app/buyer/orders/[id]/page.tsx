@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,8 +33,14 @@ import {
   Download,
   ArrowLeft,
   AlertCircle,
+  RefreshCw,
+  Loader2,
+  X,
+  Ban,
+  MessageSquareWarning,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { uploadBuyerOrderPhoto } from "@/lib/upload";
 
 const BuyerOrderDetailPage = () => {
   const params = useParams();
@@ -46,13 +52,24 @@ const BuyerOrderDetailPage = () => {
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState("");
-  
+
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
   const [revisionNote, setRevisionNote] = useState("");
-  const [revisionAttachmentInput, setRevisionAttachmentInput] = useState("");
   const [revisionAttachments, setRevisionAttachments] = useState<string[]>([]);
   const [revisionLoading, setRevisionLoading] = useState(false);
+  const [revisionUploading, setRevisionUploading] = useState(false);
   const [revisionError, setRevisionError] = useState("");
+  const revisionFileInputRef = useRef<HTMLInputElement>(null);
+
+  // States for Cancellation
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [cancellationLoading, setCancellationLoading] = useState(false);
+
+  // States for Complaint (Dispute)
+  const [showComplaintDialog, setShowComplaintDialog] = useState(false);
+  const [complaintReason, setComplaintReason] = useState("");
+  const [complaintLoading, setComplaintLoading] = useState(false);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -107,18 +124,42 @@ const BuyerOrderDetailPage = () => {
       alert("Gagal menyelesaikan pesanan");
     }
   };
-  
-  const handleAddRevisionAttachment = () => {
-    if (revisionAttachmentInput && revisionAttachments.length < 5) {
-      setRevisionAttachments([...revisionAttachments, revisionAttachmentInput]);
-      setRevisionAttachmentInput("");
+
+  const handleRevisionFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user) return;
+
+    if (revisionAttachments.length + files.length > 5) {
+      setRevisionError("Maksimal 5 file");
+      return;
+    }
+
+    setRevisionUploading(true);
+    setRevisionError("");
+
+    try {
+      const orderName = `order-${order?.id || Date.now()}`;
+      const uploadPromises = Array.from(files).map((file) =>
+        uploadBuyerOrderPhoto(file, user.fullName, orderName, user.nim)
+      );
+
+      const results = await Promise.all(uploadPromises);
+      const newUrls = results.map((result) => result.data.url);
+      setRevisionAttachments((prev) => [...prev, ...newUrls]);
+    } catch (err: any) {
+      setRevisionError(err.message || "Gagal mengupload file");
+    } finally {
+      setRevisionUploading(false);
+      if (revisionFileInputRef.current) {
+        revisionFileInputRef.current.value = "";
+      }
     }
   };
 
   const handleRemoveRevisionAttachment = (index: number) => {
     setRevisionAttachments(revisionAttachments.filter((_, i) => i !== index));
   };
-  
+
   const handleRequestRevision = async () => {
     if (revisionNote.length < 20) {
       setRevisionError("Deskripsi revisi minimal 20 karakter.");
@@ -129,7 +170,7 @@ const BuyerOrderDetailPage = () => {
       setRevisionError("Batas revisi (" + order.maxRevisions + "x) telah tercapai.");
       return;
     }
-    
+
     setRevisionLoading(true);
     setRevisionError("");
 
@@ -164,6 +205,70 @@ const BuyerOrderDetailPage = () => {
     }
   };
 
+  const handleCancelOrder = async () => {
+    if (cancellationReason.length < 10) {
+      alert("Alasan pembatalan minimal 10 karakter");
+      return;
+    }
+
+    setCancellationLoading(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`/api/orders/${order?.id}/cancel/buyer`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: cancellationReason }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        setShowCancelDialog(false);
+        fetchOrder();
+      } else {
+        alert(data.error || "Gagal membatalkan pesanan");
+      }
+    } catch (err) {
+      alert("Terjadi kesalahan sistem");
+    } finally {
+      setCancellationLoading(false);
+    }
+  };
+
+  const handleComplain = async () => {
+    if (complaintReason.length < 50) {
+      alert("Alasan komplain minimal 50 karakter");
+      return;
+    }
+
+    setComplaintLoading(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`/api/disputes/order/${order?.id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: complaintReason }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Komplain berhasil diajukan. Admin akan meninjau pesanan ini.");
+        setShowComplaintDialog(false);
+        fetchOrder();
+      } else {
+        alert(data.error || "Gagal mengajukan komplain");
+      }
+    } catch (err) {
+      alert("Terjadi kesalahan sistem");
+    } finally {
+      setComplaintLoading(false);
+    }
+  };
+
   if (loading || authLoading)
     return (
       <BuyerLayout>
@@ -189,8 +294,8 @@ const BuyerOrderDetailPage = () => {
       DRAFT: 10,
       WAITING_PAYMENT: 20,
       PAID_ESCROW: 40,
-      IN_PROGRESS: 55, 
-      REVISION: 70,   
+      IN_PROGRESS: 55,
+      REVISION: 70,
       DELIVERED: 85,
       COMPLETED: 100,
       CANCELLED: 0,
@@ -229,11 +334,11 @@ const BuyerOrderDetailPage = () => {
   ];
 
   const revisionStage = hasRevisionHistory ? [{
-      id: 3.5,
-      label: `Revisi Diminta (${order.revisionCount} dari ${order.maxRevisions}x)`,
-      date: isRevisionStage ? order.deliveredAt : undefined, 
-      completed: isRevisionStage || isAfterRevision,
-      icon: RefreshCw,
+    id: 3.5,
+    label: `Revisi Diminta (${order.revisionCount} dari ${order.maxRevisions}x)`,
+    date: isRevisionStage ? order.deliveredAt : undefined,
+    completed: isRevisionStage || isAfterRevision,
+    icon: RefreshCw,
   }] : [];
 
   const finalStages = [
@@ -254,7 +359,7 @@ const BuyerOrderDetailPage = () => {
       icon: Star,
     },
   ];
-  
+
   const trackingStages = finalStages;
   const activeStageIndex = trackingStages.filter((s) => s.completed).length - 1;
 
@@ -316,10 +421,10 @@ const BuyerOrderDetailPage = () => {
                   {trackingStages.map((stage, idx) => {
                     const Icon = stage.icon;
                     const isCompleted = stage.completed;
-                    
+
                     const statusClass = isCompleted
-                              ? "border-primary text-primary"
-                              : "border-muted text-muted-foreground";
+                      ? "border-primary text-primary"
+                      : "border-muted text-muted-foreground";
 
                     return (
                       <div key={stage.id} className="flex gap-4 items-start">
@@ -330,11 +435,10 @@ const BuyerOrderDetailPage = () => {
                         </div>
                         <div className="pt-2">
                           <h4
-                            className={`font-medium ${
-                              isCompleted
-                                ? "text-foreground"
-                                : "text-muted-foreground"
-                            }`}
+                            className={`font-medium ${isCompleted
+                              ? "text-foreground"
+                              : "text-muted-foreground"
+                              }`}
                           >
                             {stage.label}
                           </h4>
@@ -344,14 +448,14 @@ const BuyerOrderDetailPage = () => {
                             </p>
                           )}
                           {stage.id === 3.5 && order.status === 'REVISION' && (
-                             <p className="text-xs text-orange-600 font-medium">
-                               Menunggu Penyedia Jasa Menyerahkan Hasil Revisi
-                             </p>
+                            <p className="text-xs text-orange-600 font-medium">
+                              Menunggu Penyedia Jasa Menyerahkan Hasil Revisi
+                            </p>
                           )}
                           {stage.id === 3.5 && order.status === 'DELIVERED' && (
-                             <p className="text-xs text-green-600 font-medium">
-                               Hasil Revisi Dikirim Ulang
-                             </p>
+                            <p className="text-xs text-green-600 font-medium">
+                              Hasil Revisi Dikirim Ulang
+                            </p>
                           )}
                         </div>
                       </div>
@@ -401,6 +505,30 @@ const BuyerOrderDetailPage = () => {
                 <CardTitle>Status & Aksi</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                {/* STATUS BADGES & INFO */}
+                {order.status === "PAID_ESCROW" && (
+                  <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg text-sm text-blue-900 mb-2">
+                    <p className="font-medium flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                      Menunggu Konfirmasi Seller
+                    </p>
+                    <p className="text-xs mt-1 text-blue-800">
+                      Seller belum memulai pekerjaan. Anda dapat membatalkan pesanan.
+                    </p>
+                  </div>
+                )}
+
+                {order.dispute && (
+                  <div className="bg-red-50 border border-red-200 p-3 rounded-lg text-sm text-red-900 mb-2">
+                    <p className="font-medium flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-red-600" />
+                      Dalam Sengketa
+                    </p>
+                    <p className="text-xs mt-1 text-red-800">
+                      Pesanan ini sedang ditinjau oleh Admin karena adanya komplain. Auto-complete dimatikan.
+                    </p>
+                  </div>
+                )}
                 {showPaymentActions && (
                   <>
                     <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-xs text-amber-900 flex gap-2">
@@ -413,6 +541,28 @@ const BuyerOrderDetailPage = () => {
                     </div>
                     <PaymentButton orderId={order.id} onSuccess={fetchOrder} />
                   </>
+                )}
+
+                {/* CANCEL BUTTON FOR PAID_ESCROW (Before Approval) */}
+                {order.status === "PAID_ESCROW" && (
+                  <Button
+                    variant="outline"
+                    className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={() => setShowCancelDialog(true)}
+                  >
+                    <Ban className="mr-2 h-4 w-4" /> Batalkan Pesanan
+                  </Button>
+                )}
+
+                {/* CANCEL BUTTON FOR DRAFT/WAITING (Optional improvement) */}
+                {(order.status === "DRAFT" || order.status === "WAITING_PAYMENT") && (
+                  <Button
+                    variant="ghost"
+                    className="w-full text-red-500 hover:text-red-700 hover:bg-red-50 mt-2 h-8 text-xs"
+                    onClick={() => setShowCancelDialog(true)}
+                  >
+                    Batalkan Pesanan
+                  </Button>
                 )}
                 {/* END LOGIKA PEMBAYARAN */}
 
@@ -432,32 +582,46 @@ const BuyerOrderDetailPage = () => {
                     >
                       <RefreshCw className="mr-2 h-4 w-4" /> Minta Revisi
                       {order.revisionCount >= 0 && (
-                         <Badge 
-                           variant={maxRevisionsReached ? "destructive" : "secondary"} 
-                           className={`ml-2 ${maxRevisionsReached ? "bg-destructive/10 text-destructive border-destructive" : "bg-orange-100 text-orange-700 border-orange-200"}`}
-                         >
-                           {order.revisionCount} / {order.maxRevisions}
-                         </Badge>
+                        <Badge
+                          variant={maxRevisionsReached ? "destructive" : "secondary"}
+                          className={`ml-2 ${maxRevisionsReached ? "bg-destructive/10 text-destructive border-destructive" : "bg-orange-100 text-orange-700 border-orange-200"}`}
+                        >
+                          {order.revisionCount} / {order.maxRevisions}
+                        </Badge>
                       )}
                     </Button>
                     {maxRevisionsReached && (
-                       <p className="text-xs text-center text-destructive">
-                           Batas revisi sudah tercapai. Pilihan lain adalah Buka Sengketa.
-                       </p>
+                      <p className="text-xs text-center text-destructive">
+                        Batas revisi sudah tercapai. Pilihan lain adalah Buka Sengketa.
+                      </p>
                     )}
                   </div>
                 )}
-                
+
                 {order.status === "REVISION" && (
-                    <div className="text-sm text-muted-foreground text-center bg-orange-50/50 p-3 rounded border border-orange-200">
-                        Permintaan revisi **ke-{order.revisionCount}** sedang dikerjakan oleh Seller.
-                        ({order.maxRevisions - order.revisionCount}x tersisa)
-                    </div>
+                  <div className="text-sm text-muted-foreground text-center bg-orange-50/50 p-3 rounded border border-orange-200">
+                    Permintaan revisi **ke-{order.revisionCount}** sedang dikerjakan oleh Seller.
+                    ({order.maxRevisions - order.revisionCount}x tersisa)
+                  </div>
                 )}
 
                 {order.status === "IN_PROGRESS" && (
                   <div className="text-sm text-muted-foreground text-center bg-muted/50 p-3 rounded">
                     Penyedia sedang mengerjakan pesanan Anda.
+                  </div>
+                )}
+
+                {/* COMPLAINT BUTTON - Available during work/delivery if no dispute active */}
+                {(["IN_PROGRESS", "REVISION", "DELIVERED"].includes(order.status)) && !order.dispute && (
+                  <div className="pt-2">
+                    <Button
+                      variant="ghost"
+                      className="w-full text-muted-foreground hover:text-destructive text-xs border border-transparent hover:border-destructive/20"
+                      onClick={() => setShowComplaintDialog(true)}
+                    >
+                      <MessageSquareWarning className="h-3 w-3 mr-1.5" />
+                      Ajukan Komplain / Sengketa
+                    </Button>
                   </div>
                 )}
 
@@ -556,11 +720,10 @@ const BuyerOrderDetailPage = () => {
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button key={star} onClick={() => setRating(star)}>
                       <Star
-                        className={`h-8 w-8 ${
-                          star <= rating
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-gray-300"
-                        }`}
+                        className={`h-8 w-8 ${star <= rating
+                          ? "fill-yellow-400 text-yellow-400"
+                          : "text-gray-300"
+                          }`}
                       />
                     </button>
                   ))}
@@ -583,109 +746,172 @@ const BuyerOrderDetailPage = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        
-        <Dialog open={showRevisionDialog} onOpenChange={setShowRevisionDialog}>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle>Minta Revisi ({order.revisionCount} dari {order.maxRevisions}x)</DialogTitle>
-                    <DialogDescription>
-                        Jelaskan secara detail apa yang perlu diubah. Jatah revisi Anda akan berkurang.
-                        {maxRevisionsReached && (
-                            <p className="text-sm text-destructive mt-2">
-                                **PERINGATAN:** Anda telah mencapai batas {order.maxRevisions}x revisi. Jika Anda tetap tidak puas, langkah selanjutnya adalah membuka sengketa.
-                            </p>
-                        )}
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                    <form onSubmit={(e) => {e.preventDefault(); handleRequestRevision();}} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="revisionNote">
-                                Deskripsi Revisi <span className="text-destructive">*</span>
-                            </Label>
-                            <Textarea
-                                id="revisionNote"
-                                placeholder="Contoh: Warna logo perlu diganti menjadi #00A65A dan tata letak teks diubah."
-                                value={revisionNote}
-                                onChange={(e) => {
-                                    setRevisionNote(e.target.value);
-                                    setRevisionError("");
-                                }}
-                                rows={5}
-                                required
-                            />
-                            {revisionNote.length < 20 && (
-                                <p className="text-xs text-muted-foreground">Minimal 20 karakter ({revisionNote.length}/20)</p>
-                            )}
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label>Lampiran Pendukung (Max 5)</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              placeholder="URL File / Gambar"
-                              value={revisionAttachmentInput}
-                              onChange={(e) => setRevisionAttachmentInput(e.target.value)}
-                              disabled={revisionAttachments.length >= 5}
-                            />
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              onClick={handleAddRevisionAttachment}
-                              disabled={!revisionAttachmentInput || revisionAttachments.length >= 5}
-                            >
-                              Tambah
-                            </Button>
-                          </div>
-                          <div className="space-y-1 mt-2">
-                            {revisionAttachments.map((url, index) => (
-                              <div 
-                                key={index} 
-                                className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded"
-                              >
-                                <span className="truncate">{url}</span>
-                                <Button 
-                                  size="icon-sm" 
-                                  variant="ghost" 
-                                  type="button"
-                                  onClick={() => handleRemoveRevisionAttachment(index)}
-                                >
-                                  <X className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
 
-                        {revisionError && (
-                          <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm flex items-center">
-                            <AlertCircle className="inline h-4 w-4 mr-2" />
-                            {revisionError}
-                          </div>
-                        )}
-                    </form>
+        <Dialog open={showRevisionDialog} onOpenChange={setShowRevisionDialog}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Minta Revisi ({order.revisionCount} dari {order.maxRevisions}x)</DialogTitle>
+              <DialogDescription>
+                Jelaskan secara detail apa yang perlu diubah. Jatah revisi Anda akan berkurang.
+                {maxRevisionsReached && (
+                  <p className="text-sm text-destructive mt-2">
+                    **PERINGATAN:** Anda telah mencapai batas {order.maxRevisions}x revisi. Jika Anda tetap tidak puas, langkah selanjutnya adalah membuka sengketa.
+                  </p>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleRequestRevision(); }} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="revisionNote">
+                    Deskripsi Revisi <span className="text-destructive">*</span>
+                  </Label>
+                  <Textarea
+                    id="revisionNote"
+                    placeholder="Contoh: Warna logo perlu diganti menjadi #00A65A dan tata letak teks diubah."
+                    value={revisionNote}
+                    onChange={(e) => {
+                      setRevisionNote(e.target.value);
+                      setRevisionError("");
+                    }}
+                    rows={5}
+                    required
+                  />
+                  {revisionNote.length < 20 && (
+                    <p className="text-xs text-muted-foreground">Minimal 20 karakter ({revisionNote.length}/20)</p>
+                  )}
                 </div>
-                <DialogFooter>
-                    <Button
-                        variant="outline"
-                        onClick={() => setShowRevisionDialog(false)}
-                        disabled={revisionLoading}
-                    >
-                        Batal
-                    </Button>
-                    <Button 
-                        onClick={handleRequestRevision}
-                        disabled={revisionLoading || maxRevisionsReached || revisionNote.length < 20}
-                        className="bg-orange-600 hover:bg-orange-700"
-                    >
-                        {revisionLoading ? (
-                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Mengirim...</>
-                        ) : (
-                            "Kirim Permintaan Revisi"
-                        )}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
+
+                <div className="space-y-2">
+                  <Label>Lampiran Pendukung (Max 5)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      ref={revisionFileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/*,.pdf,.doc,.docx"
+                      onChange={handleRevisionFileSelect}
+                      disabled={revisionAttachments.length >= 5 || revisionUploading}
+                      className="flex-1"
+                    />
+                    {revisionUploading && (
+                      <div className="flex items-center text-sm text-muted-foreground px-2">
+                        <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                        Mengupload...
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1 mt-2">
+                    {revisionAttachments.map((url, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded"
+                      >
+                        <span className="truncate">{url}</span>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          type="button"
+                          onClick={() => handleRemoveRevisionAttachment(index)}
+                        >
+                          <X className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {revisionError && (
+                  <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm flex items-center">
+                    <AlertCircle className="inline h-4 w-4 mr-2" />
+                    {revisionError}
+                  </div>
+                )}
+              </form>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowRevisionDialog(false)}
+                disabled={revisionLoading}
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleRequestRevision}
+                disabled={revisionLoading || maxRevisionsReached || revisionNote.length < 20}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                {revisionLoading ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Mengirim...</>
+                ) : (
+                  "Kirim Permintaan Revisi"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Batalkan Pesanan</DialogTitle>
+              <DialogDescription>
+                Apakah Anda yakin ingin membatalkan pesanan ini?
+                {order.isPaid && " Dana akan dikembalikan ke saldo dompet Anda."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Label className="mb-2 block">Alasan Pembatalan</Label>
+              <Textarea
+                placeholder="Contoh: Saya berubah pikiran, Seller tidak merespon..."
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCancelDialog(false)}>Kembali</Button>
+              <Button
+                variant="destructive"
+                onClick={handleCancelOrder}
+                disabled={cancellationLoading || cancellationReason.length < 10}
+              >
+                {cancellationLoading ? "Memproses..." : "Batalkan Pesanan"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* COMPLAINT DIALOG */}
+        <Dialog open={showComplaintDialog} onOpenChange={setShowComplaintDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Ajukan Komplain</DialogTitle>
+              <DialogDescription>
+                Ajukan komplain jika hasil tidak sesuai atau ada masalah serius.
+                Pesanan ini akan ditahan dari penyelesaian otomatis sampai Admin menyelesaikannya.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Label className="mb-2 block">Detail Masalah</Label>
+              <Textarea
+                placeholder="Jelaskan masalah Anda secara detail..."
+                value={complaintReason}
+                onChange={(e) => setComplaintReason(e.target.value)}
+                rows={5}
+              />
+              <p className="text-xs text-muted-foreground mt-2">Minimal 50 karakter.</p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowComplaintDialog(false)}>Batal</Button>
+              <Button
+                onClick={handleComplain}
+                className="bg-red-600 hover:bg-red-700"
+                disabled={complaintLoading || complaintReason.length < 20}
+              >
+                {complaintLoading ? "Mengirim..." : "Kirim Komplain"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
         </Dialog>
       </div>
     </BuyerLayout>

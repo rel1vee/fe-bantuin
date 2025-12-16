@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChat } from "@/contexts/ChatContext";
 import PublicLayout from "@/components/layouts/PublicLayout";
 import PaymentButton from "@/components/orders/PaymentButton";
 import {
@@ -12,11 +13,9 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
-  TbClock,
   TbFileDescription,
   TbCoin,
   TbCalendar,
@@ -25,13 +24,9 @@ import {
   TbArrowLeft,
   TbCheck,
   TbMessageCircle,
-  TbDownload,
-  TbFlag,
   TbStar,
-  TbMapPin,
-  TbMail,
-  TbPhone,
 } from "react-icons/tb";
+import { Badge } from "@/components/ui/badge";
 
 interface OrderDetail {
   id: string;
@@ -45,6 +40,7 @@ interface OrderDetail {
     title: string;
     category: string;
     seller: {
+      id: string; // Ensure ID is here
       avgRating: number;
       fullName: string;
       profilePicture: string;
@@ -62,6 +58,7 @@ const OrderDetailPage = () => {
   const params = useParams();
   const router = useRouter();
   const { isAuthenticated, loading: authLoading } = useAuth();
+  const { openChatWith } = useChat();
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -125,6 +122,16 @@ const OrderDetailPage = () => {
     fetchOrder();
   };
 
+  const handleContactProvider = () => {
+    if (!order?.service.seller) return;
+    openChatWith({
+      id: order.service.seller.id,
+      fullName: order.service.seller.fullName,
+      profilePicture: order.service.seller.profilePicture,
+      major: order.service.seller.major
+    });
+  };
+
   if (loading || authLoading) {
     return (
       <PublicLayout>
@@ -144,8 +151,6 @@ const OrderDetailPage = () => {
       </PublicLayout>
     );
   }
-
-  console.log(order);
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -287,11 +292,10 @@ const OrderDetailPage = () => {
                           {index < statuses.length - 1 && (
                             <>
                               <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-                                  index <= currentIndex
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted text-muted-foreground"
-                                }`}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${index <= currentIndex
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted text-muted-foreground"
+                                  }`}
                               >
                                 {index < currentIndex ? (
                                   <TbCheck className="w-4 h-4" />
@@ -300,21 +304,19 @@ const OrderDetailPage = () => {
                                 )}
                               </div>
                               <div
-                                className={`flex-1 h-1 ${
-                                  index < currentIndex
-                                    ? "bg-primary"
-                                    : "bg-muted"
-                                }`}
+                                className={`flex-1 h-1 ${index < currentIndex
+                                  ? "bg-primary"
+                                  : "bg-muted"
+                                  }`}
                               />
                             </>
                           )}
                           {index === statuses.length - 1 && (
                             <div
-                              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-                                index <= currentIndex
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-muted text-muted-foreground"
-                              }`}
+                              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${index <= currentIndex
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground"
+                                }`}
                             >
                               {index < currentIndex ? (
                                 <TbCheck className="w-4 h-4" />
@@ -325,11 +327,10 @@ const OrderDetailPage = () => {
                           )}
                         </div>
                         <p
-                          className={`text-xs font-medium text-center ${
-                            index <= currentIndex
-                              ? "text-foreground"
-                              : "text-muted-foreground"
-                          }`}
+                          className={`text-xs font-medium text-center ${index <= currentIndex
+                            ? "text-foreground"
+                            : "text-muted-foreground"
+                            }`}
                         >
                           {status.label}
                         </p>
@@ -424,7 +425,7 @@ const OrderDetailPage = () => {
                       <h4 className="font-semibold text-foreground truncate">
                         {order.service.seller.fullName}
                       </h4>
-                      {order.service.seller.avgRating && (
+                      {order.service.seller.avgRating >= 0 && (
                         <div className="flex items-center gap-1 mt-1">
                           <TbStar className="w-4 h-4 text-amber-500 fill-amber-500" />
                           {/* <span className="text-sm font-medium text-foreground">
@@ -432,7 +433,7 @@ const OrderDetailPage = () => {
                               Number(order.service.seller.avgRating.toFixed(1))
                             )}
                           </span> */}
-                          {order.service.seller.totalReviews && (
+                          {order.service.seller.totalReviews >= 0 && (
                             <span className="text-xs text-muted-foreground">
                               ({order.service.seller.totalReviews} ulasan)
                             </span>
@@ -444,7 +445,11 @@ const OrderDetailPage = () => {
 
                   <Separator />
 
-                  <Button className="w-full gap-2" variant="outline">
+                  <Button
+                    className="w-full gap-2"
+                    variant="outline"
+                    onClick={handleContactProvider}
+                  >
                     <TbMessageCircle className="w-4 h-4" />
                     Hubungi Penyedia
                   </Button>

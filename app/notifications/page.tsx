@@ -1,4 +1,4 @@
-'use client'; 
+'use client';
 
 import * as React from "react";
 import Link from "next/link";
@@ -16,6 +16,7 @@ import {
   CheckCircle,
   Clock,
   ExternalLink,
+  ChevronLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,7 @@ const PageNotificationItem: React.FC<{ notification: Notification }> = ({
   notification,
 }) => {
   const markAsRead = useMarkAsRead(notification.id);
-  
+
   // Menggunakan styling yang lebih menonjol untuk halaman penuh
   const bgColor = notification.isRead
     ? "bg-white border hover:bg-gray-50"
@@ -70,7 +71,7 @@ const PageNotificationItem: React.FC<{ notification: Notification }> = ({
       <div className="flex-shrink-0 mt-1">
         {getIcon(notification.type)}
       </div>
-      
+
       <div className="flex-1 min-w-0">
         <p className={cn("text-base break-words leading-snug", textColor)}>
           {notification.content}
@@ -85,7 +86,7 @@ const PageNotificationItem: React.FC<{ notification: Notification }> = ({
           </span>
         </div>
       </div>
-      
+
       {notification.link && (
         <ExternalLink className="h-4 w-4 text-muted-foreground ml-auto mt-1 flex-shrink-0" />
       )}
@@ -97,10 +98,10 @@ const PageNotificationItem: React.FC<{ notification: Notification }> = ({
   );
 
   return (
-    <Link 
-      href={notification.link || "#"} 
-      passHref 
-      onClick={handleClick} 
+    <Link
+      href={notification.link || "#"}
+      passHref
+      onClick={handleClick}
       className="block"
     >
       {content}
@@ -119,7 +120,7 @@ export default function NotificationsPage() {
   };
 
   const hasNotifications = notifications && notifications.length > 0;
-  
+
   // Pisahkan notifikasi
   const unreadNotifications = notifications?.filter(n => !n.isRead) || [];
   const readNotifications = notifications?.filter(n => n.isRead) || [];
@@ -146,25 +147,34 @@ export default function NotificationsPage() {
   // --- Render Halaman Notifikasi Penuh ---
   return (
     // Gunakan padding responsif dan lebar maksimum yang lebih ketat untuk mobile
-    <div className="max-w-xl mx-auto p-4 sm:p-6 lg:max-w-3xl"> 
-      
+    <div className="max-w-xl mx-auto p-4 sm:p-6 lg:max-w-3xl">
+
+      <div className="mb-2">
+        <Button variant="ghost" className="pl-0 text-muted-foreground hover:text-primary" asChild>
+          <Link href="/" className="flex items-center gap-2">
+            <ChevronLeft className="h-4 w-4" />
+            Kembali
+          </Link>
+        </Button>
+      </div>
+
       {/* Header Halaman Notifikasi */}
       <div className="flex justify-between items-center mb-6 border-b pb-4">
         <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 flex items-center">
           <Bell className="w-6 h-6 sm:w-7 sm:h-7 mr-2 text-primary" />
           Notifikasi
           {/* Jumlah Belum Dibaca */}
-          <Badge 
-            variant="destructive" 
+          <Badge
+            variant="destructive"
             className="ml-2 text-sm sm:text-base font-bold px-2 py-1"
           >
             {unreadCount > 99 ? "99+" : unreadCount}
           </Badge>
         </h1>
-        
+
         {/* Tombol Baca Semua */}
         {hasNotifications && (
-          <Button 
+          <Button
             onClick={handleMarkAll}
             disabled={isMutating || unreadCount === 0}
             className="text-xs sm:text-sm h-8"

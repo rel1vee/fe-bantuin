@@ -1,10 +1,14 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { ChatFloatingWindow } from "@/components/chat/ChatFloatingWindow";
 import localFont from "next/font/local";
+import { Toaster } from "@/components/ui/sonner";
+
+import { ServiceWorkerRegister } from "@/app/components/ServiceWorkerRegister";
+import { PWAInstallPrompt } from "@/components/pwa/PWAInstallPrompt";
 
 const mattone = localFont({
   src: [
@@ -36,6 +40,15 @@ export const metadata: Metadata = {
   title: "Bantuin: Marketplace Jasa Mahasiswa UIN Suska Riau",
   description:
     "Platform marketplace jasa yang menghubungkan mahasiswa UIN Suska Riau dengan peluang kerja freelance dan proyek akademik.",
+  manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#ffffff",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -50,6 +63,9 @@ export default function RootLayout({
           <ChatProvider>
             {children}
             <ChatFloatingWindow />
+            <PWAInstallPrompt />
+            <Toaster position="top-right" />
+            <ServiceWorkerRegister />
           </ChatProvider>
         </AuthProvider>
       </body>

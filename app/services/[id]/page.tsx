@@ -44,6 +44,7 @@ interface ServiceDetail {
   totalOrders: number;
   isActive: boolean;
   status: string;
+  adminNotes?: string | null;
   seller: {
     id: string;
     fullName: string;
@@ -225,6 +226,21 @@ const ServiceDetailPage = () => {
     <PublicLayout>
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="container mx-auto px-4">
+          {/* Status Banner for Owner */}
+          {isOwner && service.status === "PENDING" && (
+            <div className="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800">
+              Jasa ini sedang menunggu persetujuan administrator. Anda akan
+              diberitahu setelah ditinjau.
+            </div>
+          )}
+          {isOwner && service.status === "REJECTED" && (
+            <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-red-800">
+              Jasa ini ditolak oleh administrator.{" "}
+              {service.adminNotes
+                ? `Alasan: ${service.adminNotes}`
+                : "Silakan periksa dan perbarui informasinya."}
+            </div>
+          )}
           {/* Breadcrumb */}
           <div className="mb-6 text-sm text-gray-600">
             <span
@@ -249,7 +265,7 @@ const ServiceDetailPage = () => {
             <div className="lg:col-span-2 space-y-6">
               {/* Image Slideshow */}
               <Card className="overflow-hidden py-0 border-2 border-secondary">
-                <div className="relative h-80 bg-gray-100">
+                <div className="relative w-full aspect-video bg-gray-100">
                   {service.images.length > 0 ? (
                     <Image
                       src={service.images[selectedImage]}
@@ -393,7 +409,10 @@ const ServiceDetailPage = () => {
 
                     {/* Freelancer Tab */}
                     <TabsContent value="freelancer" className="space-y-4">
-                      <div className="flex items-start gap-4">
+                      <div
+                        className="flex items-start gap-4 cursor-pointer hover:bg-gray-50 p-4 rounded-lg transition-colors -mx-4"
+                        onClick={() => router.push(`/profile/${service.seller.id}`)}
+                      >
                         <Avatar className="h-20 w-20">
                           <AvatarImage
                             src={service.seller.profilePicture || ""}
@@ -422,20 +441,22 @@ const ServiceDetailPage = () => {
                             {/* BUTTON REPORT DI SINI */}
                             {isAuthenticated &&
                               user?.id !== service.seller.id && (
-                                <ReportUserDialog
-                                  reportedUserId={service.seller.id}
-                                  reportedUserName={service.seller.fullName}
-                                  trigger={
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="text-muted-foreground hover:text-destructive h-auto py-1 px-2"
-                                    >
-                                      <TbFlag className="w-4 h-4 mr-1" />
-                                      <span className="text-xs">Laporkan</span>
-                                    </Button>
-                                  }
-                                />
+                                <div onClick={(e) => e.stopPropagation()}>
+                                  <ReportUserDialog
+                                    reportedUserId={service.seller.id}
+                                    reportedUserName={service.seller.fullName}
+                                    trigger={
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-muted-foreground hover:text-destructive h-auto py-1 px-2"
+                                      >
+                                        <TbFlag className="w-4 h-4 mr-1" />
+                                        <span className="text-xs">Laporkan</span>
+                                      </Button>
+                                    }
+                                  />
+                                </div>
                               )}
                           </div>
 
@@ -510,11 +531,10 @@ const ServiceDetailPage = () => {
                                     {[...Array(5)].map((_, i) => (
                                       <TbStar
                                         key={i}
-                                        className={`h-4 w-4 ${
-                                          i < review.rating
-                                            ? "fill-yellow-400 text-yellow-400"
-                                            : "text-gray-300"
-                                        }`}
+                                        className={`h-4 w-4 ${i < review.rating
+                                          ? "fill-yellow-400 text-yellow-400"
+                                          : "text-gray-300"
+                                          }`}
                                       />
                                     ))}
                                   </div>
@@ -617,8 +637,8 @@ const ServiceDetailPage = () => {
                       {isOwner
                         ? "Jasa Anda Sendiri"
                         : isInactive
-                        ? "Jasa Tidak Tersedia"
-                        : "Pesan Sekarang"}
+                          ? "Jasa Tidak Tersedia"
+                          : "Pesan Sekarang"}
                     </Button>
 
                     <Button
@@ -632,8 +652,8 @@ const ServiceDetailPage = () => {
                       {isOwner
                         ? "Jasa Anda Sendiri"
                         : isInactive
-                        ? "Jasa Tidak Tersedia"
-                        : "Chat Penyedia"}
+                          ? "Jasa Tidak Tersedia"
+                          : "Chat Penyedia"}
                     </Button>
                     {!isAuthenticated && (
                       <p className="text-xs text-center text-gray-500">
