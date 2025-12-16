@@ -89,6 +89,9 @@ interface ChatContextType {
   ) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
   refreshConversations: () => Promise<Conversation[]>;
+  onlineUsers: Set<string>; // [BARU] Daftar ID user online
+  typingUsers: Record<string, boolean>; // [BARU] Map conversationId -> isTyping
+  sendTyping: (isTyping: boolean) => void; // [BARU] Fungsi trigger typing
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -109,6 +112,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     {}
   );
   const activeConversationRef = useRef(activeConversation);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({});
 
   const markAsRead = async (conversationId: string) => {
     const token = localStorage.getItem("access_token");
@@ -225,6 +230,36 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       }
     });
 
+    // [BARU] Listener Status Online/Offline
+    newSocket.on(
+      "userStatus",
+      ({ userId, isOnline }: { userId: string; isOnline: boolean }) => {
+        setOnlineUsers((prev) => {
+          const newSet = new Set(prev);
+          if (isOnline) newSet.add(userId);
+          else newSet.delete(userId);
+          return newSet;
+        });
+      }
+    );
+
+    // [BARU] Listener Typing
+    newSocket.on(
+      "partnerTyping",
+      ({
+        conversationId,
+        isTyping,
+      }: {
+        conversationId: string;
+        isTyping: boolean;
+      }) => {
+        // Hanya update jika ini untuk conversation yang sedang aktif
+        if (activeConversationRef.current?.id === conversationId) {
+          setTypingUsers((prev) => ({ ...prev, [conversationId]: isTyping }));
+        }
+      }
+    );
+
     newSocket.on("disconnect", () => setIsConnected(false));
 
     newSocket.on("newMessage", (message: Message) => {
@@ -335,6 +370,15 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [activeConversation?.id, isConnected]);
 
+  const sendTyping = (isTyping: boolean) => {
+    if (socket && activeConversation) {
+      socket.emit("typing", {
+        conversationId: activeConversation.id,
+        isTyping,
+      });
+    }
+  };
+
   const toggleInbox = () => {
     if (!isInboxOpen) fetchConversations();
     setIsInboxOpen(!isInboxOpen);
@@ -395,6 +439,11 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       };
       setActiveConversation(draftConversation);
       if (initialMessage) setTimeout(() => sendMessage(initialMessage), 100);
+    }
+
+    // [BARU] Request status online user tersebut
+    if (socket) {
+      socket.emit("checkUserStatus", recipient.id);
     }
   };
 
@@ -528,6 +577,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         openChatWith,
         sendMessage,
         refreshConversations: fetchConversations,
+        onlineUsers,
+        typingUsers,
+        sendTyping,
       }}
     >
       {children}

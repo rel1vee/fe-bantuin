@@ -28,8 +28,6 @@ export interface FilterState {
   sortBy: string;
 }
 
-
-
 const ServiceFilters = ({ onFilterChange, onSearch }: ServiceFiltersProps) => {
   const [filters, setFilters] = useState<FilterState>({
     sortBy: "newest",
@@ -59,12 +57,12 @@ const ServiceFilters = ({ onFilterChange, onSearch }: ServiceFiltersProps) => {
     onFilterChange(newFilters);
   };
 
-  const handleManualPriceChange = (type: 'min' | 'max', value: string) => {
+  const handleManualPriceChange = (type: "min" | "max", value: string) => {
     const numValue = parseInt(value) || 0;
     const clampedValue = Math.max(0, Math.min(5000000, numValue));
 
     let newRange: [number, number];
-    if (type === 'min') {
+    if (type === "min") {
       newRange = [clampedValue, Math.max(clampedValue, priceRange[1])];
     } else {
       newRange = [Math.min(priceRange[0], clampedValue), clampedValue];
@@ -99,7 +97,7 @@ const ServiceFilters = ({ onFilterChange, onSearch }: ServiceFiltersProps) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 md:p-0 p-4">
       {/* Category Filter */}
       <div className="space-y-2">
         <Label className="text-sm font-medium">Kategori</Label>
@@ -137,7 +135,7 @@ const ServiceFilters = ({ onFilterChange, onSearch }: ServiceFiltersProps) => {
               id="priceMin"
               type="number"
               value={priceRange[0]}
-              onChange={(e) => handleManualPriceChange('min', e.target.value)}
+              onChange={(e) => handleManualPriceChange("min", e.target.value)}
               placeholder="0"
               min={0}
               max={5000000}
@@ -153,7 +151,7 @@ const ServiceFilters = ({ onFilterChange, onSearch }: ServiceFiltersProps) => {
               id="priceMax"
               type="number"
               value={priceRange[1]}
-              onChange={(e) => handleManualPriceChange('max', e.target.value)}
+              onChange={(e) => handleManualPriceChange("max", e.target.value)}
               placeholder="5000000"
               min={0}
               max={5000000}

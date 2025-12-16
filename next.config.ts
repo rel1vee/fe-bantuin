@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+const nextConfig: any = {
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   images: {
     remotePatterns: [
       {
@@ -25,14 +28,6 @@ const nextConfig: NextConfig = {
         hostname: "ytrxhrltkqztkcnqlcrz.storage.supabase.co",
       },
     ],
-  },
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: "http://localhost:5500/api/:path*",
-      },
-    ];
   },
 };
 

@@ -13,6 +13,8 @@ import Image from "next/image";
 import { ServiceBubble } from "./ServiceBubble";
 import { format, isToday, isYesterday } from "date-fns";
 import { id } from "date-fns/locale";
+// [UBAH] Gunakan useDebouncedCallback untuk fungsi, bukan useDebounce untuk value
+import { useDebouncedCallback } from "use-debounce";
 
 // Helper untuk format Rupiah
 const formatPrice = (price: number) => {
@@ -52,6 +54,9 @@ export const ChatWindow = () => {
     messages,
     sendMessage,
     activeConversation,
+    onlineUsers,
+    typingUsers,
+    sendTyping,
     pendingService,
     setPendingService,
   } = useChat();
@@ -78,8 +83,16 @@ export const ChatWindow = () => {
     }
   }, [messages]);
 
+  // [BARU] Membuat fungsi debounce untuk stop typing
+  // Fungsi ini hanya akan dijalankan 2000ms SETELAH user BERHENTI memanggilnya
+  const handleStopTyping = useDebouncedCallback(() => {
+    sendTyping(false);
+  }, 2000);
+
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
+
+    // Resize Textarea logic
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${Math.min(
@@ -87,7 +100,18 @@ export const ChatWindow = () => {
         120
       )}px`;
     }
+
+    // 1. Langsung kirim status "sedang mengetik" saat ada input
+    sendTyping(true);
+
+    // 2. Panggil fungsi debounce.
+    // Setiap kali ini dipanggil, timer 2 detiknya di-reset ulang.
+    // Jadi sendTyping(false) baru akan jalan kalau user diam selama 2 detik.
+    handleStopTyping();
   };
+
+  // [HAPUS] typingTimeout ref tidak lagi diperlukan
+  // const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const handleTemplateClick = (text: string) => {
     setInput(text);
@@ -103,6 +127,10 @@ export const ChatWindow = () => {
         }
       }, 0);
     }
+
+    // [TAMBAHAN OPTIONAL] Jika template diklik, anggap juga sedang mengetik sebentar
+    sendTyping(true);
+    handleStopTyping();
   };
 
   const handleSend = async (e?: React.FormEvent) => {
@@ -110,6 +138,11 @@ export const ChatWindow = () => {
     if (!input.trim() || isSending) return;
 
     setIsSending(true);
+
+    // [TAMBAHAN] Segera hentikan status typing saat pesan dikirim
+    // Kita cancel debounce yang sedang berjalan agar tidak tumpang tindih
+    handleStopTyping.cancel();
+    sendTyping(false);
 
     let contentToSend = input;
 
@@ -140,6 +173,16 @@ export const ChatWindow = () => {
   const otherParticipant = activeConversation?.participants?.find(
     (p) => p.user.id !== user?.id
   )?.user;
+
+  // Cek apakah lawan bicara online
+  const isOnline = otherParticipant
+    ? onlineUsers.has(otherParticipant.id)
+    : false;
+
+  // Cek apakah lawan bicara sedang mengetik
+  const isTyping = activeConversation
+    ? typingUsers[activeConversation.id]
+    : false;
 
   if (!otherParticipant)
     return <div className="p-4 text-center">Loading...</div>;
@@ -329,6 +372,13 @@ export const ChatWindow = () => {
           ))}
         </div>
       </div>
+
+      {/* INDIKATOR TYPING */}
+      {isTyping && (
+        <div className="px-4 py-1 text-xs text-gray-500 italic animate-pulse">
+          {otherParticipant?.fullName} sedang mengetik...
+        </div>
+      )}
 
       {/* INPUT PESAN */}
       <div className="p-3 bg-white flex items-end gap-2 shrink-0">
