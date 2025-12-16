@@ -17,6 +17,7 @@ import {
   Clock,
   ExternalLink,
   ChevronLeft,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,15 @@ import {
   useMarkAsRead,
 } from "@/lib/hooks/useNotifications";
 import type { Notification } from "@/app/types/notification";
+import useSWR from "swr";
+
+interface ActivityLog {
+  action: string;
+  status: string;
+  details: string;
+  device?: string;
+  timestamp: string;
+}
 
 const getIcon = (type: Notification["type"]) => {
   const iconProps = { className: "h-5 w-5" }; // Diperbesar untuk tampilan halaman
@@ -109,6 +119,8 @@ const PageNotificationItem: React.FC<{ notification: Notification }> = ({
   );
 };
 
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
 // Komponen Utama Halaman Notifikasi (Pengganti NotificationDropdown)
 export default function NotificationsPage() {
   const { notifications, isLoading, isError } = useNotifications();
@@ -124,6 +136,12 @@ export default function NotificationsPage() {
   // Pisahkan notifikasi
   const unreadNotifications = notifications?.filter(n => !n.isRead) || [];
   const readNotifications = notifications?.filter(n => n.isRead) || [];
+
+  // === RIWAYAT AKTIVITAS USER (TAMBAHAN BARU) ===
+  const { data: activityData } = useSWR('/api/activity', fetcher, {
+    refreshInterval: 30000,
+  });
+  const activities: ActivityLog[] = activityData?.data || [];
 
   // --- Render Status Loading/Error ---
   if (isLoading || isLoadingCount) {
@@ -228,6 +246,45 @@ export default function NotificationsPage() {
           )}
         </section>
       )}
+
+      {/* Riwayat Aktivitas (TAMBAHAN BARU) */}
+      <section className="mt-12">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-3">
+          <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+            <ArrowRight className="w-6 h-6 text-white" />
+          </div>
+          Riwayat Aktivitas
+        </h2>
+
+        {activities.length === 0 ? (
+          <p className="text-center text-gray-500 py-8">Belum ada aktivitas</p>
+        ) : (
+          <div className="space-y-4">
+            {activities.map((log: ActivityLog, index: number) => (
+              <div
+                key={index}
+                className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow transition flex gap-4"
+              >
+                <div className="mt-1">
+                  <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                    <ArrowRight className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900 capitalize">
+                    {log.action.replace(/_/g, ' ')}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">{log.details}</p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {log.device || 'Perangkat tidak diketahui'} • {new Date(log.timestamp).toLocaleString('id-ID')}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
+ 
