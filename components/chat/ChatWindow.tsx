@@ -380,31 +380,52 @@ export const ChatWindow = () => {
         </div>
       )}
 
-      {/* INPUT PESAN */}
-      <div className="p-3 bg-white flex items-end gap-2 shrink-0">
-        <Textarea
-          ref={textareaRef}
-          value={input}
-          onChange={handleInput}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            pendingService
-              ? "Tulis pesan tentang jasa ini..."
-              : "Ketik pesan..."
-          }
-          className="flex-1 min-h-10 max-h-[120px] py-2 resize-none overflow-y-auto"
-          disabled={isSending}
-          rows={1}
-        />
-        <Button
-          onClick={() => handleSend()}
-          size="icon"
-          disabled={!input.trim() || isSending}
-          className="h-10 w-10 shrink-0 mb-px"
-        >
-          <TbSend className="h-4 w-4" />
-        </Button>
+          {/* INPUT PESAN DENGAN BATAS KARAKTER */}
+      <div className="p-3 bg-white flex flex-col gap-2 shrink-0">
+        <div className="flex items-end gap-2">
+          <div className="flex-1 relative">
+            <Textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleInput}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                pendingService
+                  ? "Tulis pesan tentang jasa ini..."
+                  : "Ketik pesan..."
+              }
+              className="flex-1 min-h-10 max-h-[120px] py-2 pr-16 resize-none overflow-y-auto"
+              disabled={isSending}
+              rows={1}
+            />
+            {/* Counter karakter */}
+            <div className="absolute bottom-2 right-2 text-xs text-muted-foreground pointer-events-none">
+              <span className={input.length > 4000 ? "text-red-500 font-medium" : ""}>
+                {input.length}
+              </span>
+              <span className="text-gray-400">/4096</span>
+            </div>
+          </div>
+          <Button
+            onClick={() => handleSend()}
+            size="icon"
+            disabled={!input.trim() || isSending || input.length > 4096}
+            className="h-10 w-10 shrink-0"
+            title={input.length > 4096 ? "Pesan terlalu panjang (maks 4096 karakter)" : "Kirim pesan"}
+          >
+            <TbSend className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Peringatan kalau terlalu panjang */}
+        {input.length > 4000 && (
+          <p className="text-xs text-red-500 animate-in fade-in slide-in-from-top-1">
+            Pesan terlalu panjang! Maksimal 4096 karakter ({input.length - 4096} karakter berlebih)
+          </p>
+        )}
       </div>
+    
+
     </div>
   );
 };
