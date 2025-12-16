@@ -67,8 +67,8 @@ export const ChatWindow = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const messageTemplates = [
-    "Assalamualaikum 🙏",
-    "Waalaikumsalam 😊",
+    "Assalamu'alaikum",
+    "Wa'alaikumussalam",
     "Halo kak 👋",
     "Terima kasih 🙏",
     "Sama-sama 😊",

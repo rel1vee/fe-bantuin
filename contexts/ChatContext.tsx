@@ -222,7 +222,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     newSocket.on("connect", () => {
-      console.log("✅ Socket Connected");
+      console.log("✅ [Frontend] Socket Connected to:", SOCKET_URL);
+      console.log("   Socket ID:", newSocket.id);
+      console.log("   Transport:", newSocket.io.engine.transport.name);
       setIsConnected(true);
       if (
         activeConversationRef.current &&
@@ -232,7 +234,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       }
     });
 
-    // [BARU] Listener Status Online/Offline
+    // [BARU Listener Status Online/Offline
     newSocket.on(
       "userStatus",
       ({ userId, isOnline }: { userId: string; isOnline: boolean }) => {
@@ -265,6 +267,13 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     newSocket.on("disconnect", () => setIsConnected(false));
 
     newSocket.on("newMessage", (message: Message) => {
+      console.log("📬 [Frontend] Received newMessage:", {
+        id: message.id,
+        from: message.sender.fullName,
+        conversationId: message.conversationId,
+        content: message.content.substring(0, 50),
+      });
+
       const chatId = message.conversationId;
 
       setMessagesCache((prevCache) => {

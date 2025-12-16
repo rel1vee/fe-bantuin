@@ -249,14 +249,14 @@ const ServiceDetailPage = () => {
             >
               Home
             </span>
-            <span className="mx-2">&gt;</span>
+            <span className="mx-2">/</span>
             <span
               className="hover:text-primary cursor-pointer"
               onClick={() => router.push("/services")}
             >
               Jasa
             </span>
-            <span className="mx-2">&gt;</span>
+            <span className="mx-2">/</span>
             <span className="text-gray-900">{service.title}</span>
           </div>
 
