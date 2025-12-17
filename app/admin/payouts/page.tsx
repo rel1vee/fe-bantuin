@@ -268,9 +268,6 @@ const AdminPayoutsPage = () => {
         {/* Header */}
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-linear-to-br from-primary to-secondary rounded-xl shadow-lg">
-              <TbWallet className="h-7 w-7 text-primary-foreground" />
-            </div>
             <div>
               <h1 className="text-3xl font-bold text-foreground font-display">
                 Penarikan Dana

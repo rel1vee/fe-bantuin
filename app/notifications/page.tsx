@@ -40,7 +40,7 @@ interface ActivityLog {
 }
 
 const getIcon = (type: Notification["type"]) => {
-  const iconProps = { className: "h-5 w-5" }; // Diperbesar untuk tampilan halaman
+  const iconProps = { className: "h-5 w-5" };
 
   switch (type) {
     case "ORDER":
@@ -94,10 +94,10 @@ const PageNotificationItem: React.FC<{ notification: Notification }> = ({
 }) => {
   const markAsRead = useMarkAsRead(notification.id);
 
-  // Menggunakan styling yang lebih menonjol untuk halaman penuh
   const bgColor = notification.isRead
     ? "bg-white border hover:bg-gray-50"
     : "bg-secondary/10 border border-primary/20 hover:bg-secondary/20";
+  
   const textColor = notification.isRead
     ? "text-gray-700"
     : "text-primary font-medium";
@@ -108,85 +108,83 @@ const PageNotificationItem: React.FC<{ notification: Notification }> = ({
     }
   };
 
-  const content = (
-    <div
-      className={cn(
-        "p-4 rounded-lg shadow-sm flex items-start gap-4 transition-colors",
-        bgColor
-      )}
-    >
-      <div className="shrink-0 mt-1">{getIcon(notification.type)}</div>
-
-      <div className="flex-1 min-w-0">
-        <p className={cn("text-base warp-break-word leading-snug", textColor)}>
-          {notification.content}
-        </p>
-        <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-          <Clock className="h-3 w-3" />
-          <span>
-            {formatDistanceToNow(new Date(notification.createdAt), {
-              addSuffix: true,
-              locale: idLocale,
-            })}
-          </span>
-        </div>
-      </div>
-
-      {notification.link && (
-        <ExternalLink className="h-4 w-4 text-muted-foreground ml-auto mt-1 shrink-0" />
-      )}
-
-      {!notification.isRead && (
-        <div
-          className="size-2 rounded-full bg-red-500 shrink-0 mt-2"
-          title="Belum Dibaca"
-        ></div>
-      )}
-    </div>
-  );
-
   return (
     <Link
       href={notification.link || "#"}
       passHref
       onClick={handleClick}
-      className="block"
+      className="block w-full" // Pastikan link mengambil lebar penuh
     >
-      {content}
+      <div
+        className={cn(
+          "p-4 rounded-lg shadow-sm flex items-start gap-4 transition-colors w-full", // Tambahkan w-full
+          bgColor
+        )}
+      >
+        <div className="shrink-0 mt-1">{getIcon(notification.type)}</div>
+
+        {/* PERBAIKAN UTAMA DI SINI */}
+        <div className="flex-1 min-w-0"> {/* min-w-0 mencegah flex item overflow */}
+          <p 
+            className={cn(
+              "text-base leading-snug break-words whitespace-pre-wrap", // break-words: fix overflow, whitespace-pre-wrap: jaga spasi/enter
+              textColor,
+              // OPSIONAL: Jika ingin notif yg SUDAH DIBACA dibatasi barisnya agar rapi, uncomment baris bawah:
+              // notification.isRead && "line-clamp-3 text-gray-500" 
+            )}
+          >
+            {notification.content}
+          </p>
+          <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground flex-wrap">
+            <Clock className="h-3 w-3 shrink-0" />
+            <span className="truncate"> {/* Truncate tanggal jika layar sangat kecil */}
+              {formatDistanceToNow(new Date(notification.createdAt), {
+                addSuffix: true,
+                locale: idLocale,
+              })}
+            </span>
+          </div>
+        </div>
+
+        {notification.link && (
+          <ExternalLink className="h-4 w-4 text-muted-foreground ml-auto mt-1 shrink-0" />
+        )}
+
+        {!notification.isRead && (
+          <div
+            className="size-2 rounded-full bg-red-500 shrink-0 mt-2"
+            title="Belum Dibaca"
+          ></div>
+        )}
+      </div>
     </Link>
   );
 };
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-// Komponen Utama Halaman Notifikasi (Pengganti NotificationDropdown)
 export default function NotificationsPage() {
   const { notifications, isLoading, isError } = useNotifications();
   const { unreadCount, isLoadingCount } = useUnreadCount();
   const { markAllAsRead, isMutating } = useMarkAllAsRead();
+
+  // === RIWAYAT AKTIVITAS USER ===
+  const { data: activityData } = useSWR("/api/activity", fetcher, {
+    refreshInterval: 30000,
+  });
+  const activities: ActivityLog[] = activityData?.data || [];
 
   const handleMarkAll = async () => {
     await markAllAsRead();
   };
 
   const hasNotifications = notifications && notifications.length > 0;
-
-  // Pisahkan notifikasi
   const unreadNotifications = notifications?.filter((n) => !n.isRead) || [];
   const readNotifications = notifications?.filter((n) => n.isRead) || [];
 
-  // === RIWAYAT AKTIVITAS USER (TAMBAHAN BARU) ===
-  const { data: activityData } = useSWR("/api/activity", fetcher, {
-    refreshInterval: 30000,
-  });
-  const activities: ActivityLog[] = activityData?.data || [];
-
-  // --- Render Status Loading/Error ---
   if (isLoading || isLoadingCount) {
     return (
-      <div className="flex justify-center items-center h-screen-minus-header">
-        {" "}
-        {/* Asumsi kelas h-screen-minus-header */}
+      <div className="flex justify-center items-center h-[calc(100vh-4rem)]">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <p className="ml-3 text-lg text-gray-600">Memuat notifikasi...</p>
       </div>
@@ -204,10 +202,8 @@ export default function NotificationsPage() {
     );
   }
 
-  // --- Render Halaman Notifikasi Penuh ---
   return (
-    // Gunakan padding responsif dan lebar maksimum yang lebih ketat untuk mobile
-    <div className="max-w-xl mx-auto p-4 sm:p-6 lg:max-w-3xl">
+    <div className="max-w-xl mx-auto p-4 sm:p-6 lg:max-w-3xl w-full"> {/* Tambah w-full */}
       <div className="mb-2">
         <Button
           variant="ghost"
@@ -221,12 +217,10 @@ export default function NotificationsPage() {
         </Button>
       </div>
 
-      {/* Header Halaman Notifikasi */}
-      <div className="flex justify-between items-center mb-6 border-b pb-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b pb-4 gap-4">
         <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 flex items-center">
-          <Bell className="w-6 h-6 sm:w-7 sm:h-7 mr-2 text-primary" />
+          <Bell className="w-6 h-6 sm:w-7 sm:h-7 mr-2 text-primary shrink-0" />
           Notifikasi
-          {/* Jumlah Belum Dibaca */}
           <Badge
             variant="destructive"
             className="ml-2 text-sm sm:text-base font-bold px-2 py-1"
@@ -235,12 +229,11 @@ export default function NotificationsPage() {
           </Badge>
         </h1>
 
-        {/* Tombol Baca Semua */}
         {hasNotifications && (
           <Button
             onClick={handleMarkAll}
             disabled={isMutating || unreadCount === 0}
-            className="text-xs sm:text-sm h-8"
+            className="text-xs sm:text-sm h-8 w-full sm:w-auto"
           >
             {isMutating ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -252,9 +245,8 @@ export default function NotificationsPage() {
         )}
       </div>
 
-      {/* Konten Notifikasi */}
       {!hasNotifications && (
-        <div className="text-center p-10 sm:p-20 border-2 border-dashed rounded-xl  mt-10">
+        <div className="text-center p-10 sm:p-20 border-2 border-dashed rounded-xl mt-10">
           <CheckCircle className="w-10 h-10 sm:w-12 sm:h-12 text-green-500 mx-auto mb-4" />
           <p className="text-lg sm:text-xl text-gray-600 font-semibold">
             Semua beres! Tidak ada notifikasi saat ini.
@@ -262,10 +254,8 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      {/* Daftar Notifikasi */}
       {hasNotifications && (
         <section className="space-y-6 mt-6">
-          {/* Bagian Belum Dibaca */}
           {unreadNotifications.length > 0 && (
             <div>
               <h2 className="text-lg sm:text-xl font-bold mb-3 text-primary">
@@ -273,14 +263,12 @@ export default function NotificationsPage() {
               </h2>
               <div className="space-y-3">
                 {unreadNotifications.map((notif) => (
-                  // Item notifikasi untuk halaman penuh
                   <PageNotificationItem key={notif.id} notification={notif} />
                 ))}
               </div>
             </div>
           )}
 
-          {/* Bagian Sudah Dibaca */}
           {readNotifications.length > 0 && (
             <div
               className={
@@ -290,9 +278,7 @@ export default function NotificationsPage() {
               <h2 className="text-lg sm:text-xl font-bold mb-3 text-gray-500">
                 Sudah Dibaca ({readNotifications.length})
               </h2>
-              <div className="space-y-3 opacity-80">
-                {" "}
-                {/* Sedikit opacity untuk yang sudah dibaca */}
+              <div className="space-y-3 opacity-90"> {/* Opacity dinaikkan sedikit agar lebih terbaca */}
                 {readNotifications.map((notif) => (
                   <PageNotificationItem key={notif.id} notification={notif} />
                 ))}
@@ -302,10 +288,9 @@ export default function NotificationsPage() {
         </section>
       )}
 
-      {/* Riwayat Aktivitas (TAMBAHAN BARU) */}
       <section className="mt-12">
         <h2 className="text-xl font-bold mb-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+          <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shrink-0">
             <ArrowRight className="w-6 h-6 text-white" />
           </div>
           Riwayat Aktivitas
@@ -318,18 +303,21 @@ export default function NotificationsPage() {
             {activities.map((log: ActivityLog, index: number) => (
               <div
                 key={index}
-                className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow transition flex gap-4"
+                className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow transition flex gap-4 items-start"
               >
-                <div className="mt-1">
+                <div className="mt-1 shrink-0">
                   <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
                     <ArrowRight className="w-6 h-6 text-white" />
                   </div>
                 </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900 capitalize">
+                {/* Tambahan min-w-0 untuk aktivitas juga */}
+                <div className="flex-1 min-w-0"> 
+                  <p className="font-medium text-gray-900 capitalize break-words">
                     {log.action.replace(/_/g, " ")}
                   </p>
-                  <p className="text-sm text-gray-600 mt-1">{log.details}</p>
+                  <p className="text-sm text-gray-600 mt-1 break-words">
+                    {log.details}
+                  </p>
                   <p className="text-xs text-gray-500 mt-2">
                     {log.device || "Perangkat tidak diketahui"} •{" "}
                     {new Date(log.timestamp).toLocaleString("id-ID")}

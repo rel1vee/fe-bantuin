@@ -66,8 +66,8 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   }
 
   const menuItems: MenuItem[] = [
-    { icon: TbClipboard, label: "Review", href: "/admin/reviews" },
     { icon: TbLayoutDashboard, label: "Dashboard", href: "/admin/dashboard" },
+    { icon: TbClipboard, label: "Review", href: "/admin/reviews" },
     { icon: TbWallet, label: "Penarikan Dana", href: "/admin/payouts" },
     { icon: TbFlag, label: "Laporan Masalah", href: "/admin/reports" },
     { icon: TbUsers, label: "Pengguna", href: "/admin/users" },

@@ -50,7 +50,7 @@ const SellerLayout = ({ children }: SellerLayoutProps) => {
     { icon: TbShoppingCart, label: "Pesanan", href: "/seller/orders" },
     { icon: TbWallet, label: "Dompet", href: "/seller/wallet" },
     { icon: TbChartBar, label: "Statistik", href: "/seller/stats" },
-    { icon: TbSettings, label: "Pengaturan", href: "/seller/settings" },
+    // { icon: TbSettings, label: "Pengaturan", href: "/seller/settings" },
   ];
 
   const isActive = (href: string) => pathname === href;

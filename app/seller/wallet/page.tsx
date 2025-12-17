@@ -7,7 +7,7 @@ import SellerLayout from "@/components/layouts/SellerLayout";
 import PayoutAccountForm from "@/components/wallet/PayoutAccountForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  formatNumberWithSeparator, 
+  formatNumberWithSeparator,
   parseNumberFromFormattedString,
 } from '@/lib/utils';
 import { Button } from "@/components/ui/button";
@@ -197,8 +197,17 @@ const SellerWalletPage = () => {
     setPayoutError("");
 
     const amount = Number(payoutAmount);
+    
+    // Validasi Minimum
     if (!amount || amount < 50000) {
       setPayoutError("Minimal penarikan adalah Rp 50.000");
+      setPayoutLoading(false);
+      return;
+    }
+
+    // Validasi Maksimum (Backup check)
+    if (amount > 10000000) {
+      setPayoutError("Maksimal penarikan adalah Rp 10.000.000");
       setPayoutLoading(false);
       return;
     }
@@ -319,10 +328,6 @@ const SellerWalletPage = () => {
     (currentYear - i).toString()
   );
 
-  /**
-   * Helper function to group items by date (day, month, year)
-   * FIX: Menggunakan Type Assertion `as any` untuk key dinamis
-   */
   const groupByDate = (
     items: (PayoutRequest | WalletTransaction)[],
     dateKey: 'requestedAt' | 'createdAt',
@@ -334,14 +339,12 @@ const SellerWalletPage = () => {
       year: 'numeric',
     });
     
-    // Sort items by date descending first, so the latest date appears first
     const sortedItems = [...items].sort((a, b) => 
         new Date((b as any)[dateKey] as string).getTime() - 
         new Date((a as any)[dateKey] as string).getTime()
     );
 
     sortedItems.forEach((item) => {
-      // Get the date part only for grouping key
       const dateOnly = new Date((item as any)[dateKey] as string).toDateString();
       const dateStr = dateFormatter.format(new Date(dateOnly));
 
@@ -371,7 +374,9 @@ const SellerWalletPage = () => {
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <TbWallet className="h-6 w-6 text-primary" />
+           <div className="p-2.5 bg-linear-to-br from-primary to-secondary rounded-xl shadow-lg">
+              <TbWallet className="h-6 w-6 text-primary-foreground" />
+            </div>
             Dompet Saya
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -428,18 +433,23 @@ const SellerWalletPage = () => {
                       placeholder={formatNumberWithSeparator(50000)} 
                       value={formatNumberWithSeparator(payoutAmount)}
                       onChange={(e) => {
+                          const rawValue = parseNumberFromFormattedString(e.target.value);
+                          let numericValue = Number(rawValue);
+
+                          // --- MODIFIKASI: LIMIT MAKS 10.000.000 ---
+                          if (numericValue > 10000000) {
+                            numericValue = 10000000;
+                          }
                           
-                          const numericString = parseNumberFromFormattedString(
-                            e.target.value
-                          );
-                          
-                          setPayoutAmount(numericString);
+                          setPayoutAmount(numericValue);
                       }}
                       className="pl-12 h-10 text-base font-semibold text-left" 
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Minimal penarikan {formatCurrency(50000)}
+                  {/* UPDATE HELPER TEXT */}
+                  <p className="text-xs text-muted-foreground flex justify-between">
+                    <span>Min. {formatCurrency(50000)}</span>
+                    <span>Maks. {formatCurrency(10000000)}</span>
                   </p>
                 </div>
                 <Separator />
@@ -543,7 +553,8 @@ const SellerWalletPage = () => {
                   disabled={
                     payoutLoading ||
                     accounts.length === 0 ||
-                    Number(payoutAmount) < 50000
+                    Number(payoutAmount) < 50000 ||
+                    Number(payoutAmount) > 10000000 // Disabled jika lebih (proteksi ganda)
                   }
                 >
                   {payoutLoading ? (
@@ -651,12 +662,10 @@ const SellerWalletPage = () => {
                               </div>
 
                               {requestsOnDay.map((item, reqIdx) => {
-                                  // FIX: Type Assertion di sini
                                   const req = item as PayoutRequest;
                                 return (
                                 <div
                                   key={req.id}
-                                  // Mengganti border rounded-lg, dengan border-b
                                   className={`p-3 hover:bg-muted/50 transition-all cursor-pointer group flex items-center justify-between ${
                                     reqIdx < requestsOnDay.length - 1 ? 'border-b border-border/50' : ''
                                   }`}
@@ -768,7 +777,6 @@ const SellerWalletPage = () => {
                               </div>
 
                               {historyOnDay.map((item, txIdx) => {
-                                  // FIX: Type Assertion di sini
                                   const tx = item as WalletTransaction;
                                 return (
                                 <div

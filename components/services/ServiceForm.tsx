@@ -23,10 +23,15 @@ import {
 } from "@/components/ui/drawer";
 import { TbX, TbLoader, TbPhotoPlus } from "react-icons/tb";
 import { uploadServicePhoto } from "@/lib/upload";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import Image from "next/image";
 import { SERVICE_CATEGORIES_LIST } from "@/lib/constants";
+
+// Helper formater angka
+const formatNumber = (num: number | undefined) => {
+  if (!num) return "";
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
 
 interface ServiceFormProps {
   open: boolean;
@@ -111,11 +116,35 @@ const ServiceForm = ({
     }
   };
 
+  // === MODIFIKASI UTAMA DI SINI ===
+  const handlePriceChange = (
+    field: "price" | "pricePerUnit",
+    rawValue: string
+  ) => {
+    // 1. Hapus karakter non-angka
+    const sanitizedValue = rawValue.replace(/\./g, "").replace(/[^0-9]/g, "");
+    let numberValue = Number(sanitizedValue);
+
+    // 2. LOGIKA PEMBATASAN: Maksimal 10.000.000
+    if (numberValue > 10000000) {
+      numberValue = 10000000; 
+    }
+
+    if (field === "pricePerUnit") {
+      setFormData((prev) => ({
+        ...prev,
+        pricePerUnit: numberValue,
+        price: numberValue, // Sinkron ke main price
+      }));
+    } else {
+      handleChange("price", numberValue);
+    }
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !user) return;
 
-    // Check limit
     if (formData.images.length + files.length > 5) {
       setErrors((prev) => ({
         ...prev,
@@ -173,13 +202,14 @@ const ServiceForm = ({
       newErrors.category = "Kategori wajib dipilih";
     }
 
-    // Validate price based on pricing type
-    if (formData.pricingType === "FIXED" || formData.pricingType === "CUSTOM") {
+    if (
+      formData.pricingType === "FIXED" ||
+      formData.pricingType === "CUSTOM"
+    ) {
       if (!formData.price || formData.price <= 0) {
         newErrors.price = "Harga harus lebih dari 0";
       }
     } else {
-      // Per unit pricing
       if (!formData.pricePerUnit || formData.pricePerUnit <= 0) {
         newErrors.price = "Harga per unit harus lebih dari 0";
       }
@@ -203,31 +233,40 @@ const ServiceForm = ({
 
     setLoading(true);
     try {
-      // Prepare clean payload
       const payload = { ...formData };
 
-      // Remove optional fields if they are 0 or empty
       if (!payload.minimumOrder) delete payload.minimumOrder;
       if (!payload.pricePerUnit) delete payload.pricePerUnit;
 
-      // For FIXED/CUSTOM pricing, ensure unit params are cleared
-      if (payload.pricingType === "FIXED" || payload.pricingType === "CUSTOM") {
+      if (
+        payload.pricingType === "FIXED" ||
+        payload.pricingType === "CUSTOM"
+      ) {
         delete payload.pricePerUnit;
         delete payload.minimumOrder;
       } else {
-        // For unit pricing, ensure main price is set (can be same as unit price or 0, backend handles display)
-        // Usually 'price' is the base price. For unit pricing, maybe we set price to pricePerUnit for sorting?
         if (payload.pricePerUnit) payload.price = payload.pricePerUnit;
       }
 
       await onSubmit(payload);
       onOpenChange(false);
-      // Reset form (optional, depending on if drawer unmounts or not)
-      // Leaving as is for now
     } catch (error) {
       console.error("Error submitting form:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getUnitLabel = () => {
+    switch (formData.pricingType) {
+      case "PER_PAGE": return "Halaman";
+      case "PER_WORD": return "Kata";
+      case "PER_HOUR": return "Jam";
+      case "PER_ITEM": return "Item";
+      case "PER_MINUTE": return "Menit";
+      case "PER_QUESTION": return "Soal";
+      case "PER_SLIDE": return "Slide";
+      default: return "Unit";
     }
   };
 
@@ -243,8 +282,7 @@ const ServiceForm = ({
               {mode === "create" ? (
                 <>
                   Isi formulir di bawah untuk membuat jasa baru. Setelah dibuat,
-                  jasa akan dikirim untuk ditinjau administrator sebelum
-                  dipublikasikan.
+                  jasa akan dikirim untuk ditinjau administrator.
                 </>
               ) : (
                 "Perbarui informasi jasa Anda"
@@ -347,9 +385,6 @@ const ServiceForm = ({
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Pilih model pricing yang sesuai dengan jasa Anda
-                </p>
               </div>
 
               {/* Price - Fixed or Custom */}
@@ -358,21 +393,23 @@ const ServiceForm = ({
                 <div className="space-y-2">
                   <Label htmlFor="price">
                     {formData.pricingType === "CUSTOM"
-                      ? "Kisaran Harga (Rp)"
-                      : "Harga (Rp)"}{" "}
+                      ? "Kisaran Harga"
+                      : "Harga Total"}{" "}
                     <span className="text-destructive">*</span>
                   </Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    value={formData.price || ""}
-                    onChange={(e) =>
-                      handleChange("price", Number(e.target.value))
-                    }
-                    placeholder="50000"
-                    min={0}
-                    max={10000000}
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                      Rp
+                    </span>
+                    <Input
+                      id="price"
+                      type="text"
+                      value={formatNumber(formData.price)}
+                      onChange={(e) => handlePriceChange("price", e.target.value)}
+                      className="pl-9 pr-4"
+                      placeholder="0"
+                    />
+                  </div>
                   {errors.price && (
                     <p className="text-sm text-destructive">{errors.price}</p>
                   )}
@@ -386,44 +423,33 @@ const ServiceForm = ({
               {formData.pricingType &&
                 formData.pricingType !== "FIXED" &&
                 formData.pricingType !== "CUSTOM" && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="pricePerUnit">
-                        Harga Per{" "}
-                        {formData.pricingType === "PER_PAGE"
-                          ? "Halaman"
-                          : formData.pricingType === "PER_WORD"
-                          ? "Kata"
-                          : formData.pricingType === "PER_HOUR"
-                          ? "Jam"
-                          : formData.pricingType === "PER_ITEM"
-                          ? "Item"
-                          : formData.pricingType === "PER_MINUTE"
-                          ? "Menit"
-                          : formData.pricingType === "PER_QUESTION"
-                          ? "Soal"
-                          : formData.pricingType === "PER_SLIDE"
-                          ? "Slide"
-                          : "Unit"}{" "}
+                        Harga Per {getUnitLabel()}{" "}
                         <span className="text-destructive">*</span>
                       </Label>
-                      <Input
-                        id="pricePerUnit"
-                        type="number"
-                        value={formData.pricePerUnit || ""}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setFormData((prev) => ({
-                            ...prev,
-                            pricePerUnit: val,
-                            price: val,
-                          }));
-                          if (errors.price)
-                            setErrors((prev) => ({ ...prev, price: "" }));
-                        }}
-                        placeholder="5000"
-                        min={0}
-                      />
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                          Rp
+                        </span>
+                        
+                        <Input
+                          id="pricePerUnit"
+                          type="text"
+                          value={formatNumber(formData.pricePerUnit)}
+                          onChange={(e) =>
+                            handlePriceChange("pricePerUnit", e.target.value)
+                          }
+                          placeholder="5.000"
+                          className="pl-9 pr-24"
+                        />
+                        
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm bg-muted/30 px-2 py-0.5 rounded">
+                          / {getUnitLabel()}
+                        </span>
+                      </div>
+                      
                       {errors.price && (
                         <p className="text-sm text-destructive">
                           {errors.price}
@@ -433,33 +459,25 @@ const ServiceForm = ({
 
                     <div className="space-y-2">
                       <Label htmlFor="minimumOrder">Minimal Order</Label>
-                      <Input
-                        id="minimumOrder"
-                        type="number"
-                        value={formData.minimumOrder || ""}
-                        onChange={(e) =>
-                          handleChange("minimumOrder", Number(e.target.value))
-                        }
-                        placeholder="5"
-                        min={1}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="minimumOrder"
+                          type="number"
+                          value={formData.minimumOrder || ""}
+                          onChange={(e) =>
+                            handleChange("minimumOrder", Number(e.target.value))
+                          }
+                          placeholder="5"
+                          min={1}
+                          className="pr-20"
+                        />
+                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                          {getUnitLabel()}
+                        </span>
+                      </div>
+                      
                       <p className="text-xs text-muted-foreground">
-                        Misal: minimal 5{" "}
-                        {formData.pricingType === "PER_PAGE"
-                          ? "halaman"
-                          : formData.pricingType === "PER_WORD"
-                          ? "kata"
-                          : formData.pricingType === "PER_HOUR"
-                          ? "jam"
-                          : formData.pricingType === "PER_ITEM"
-                          ? "item"
-                          : formData.pricingType === "PER_MINUTE"
-                          ? "menit"
-                          : formData.pricingType === "PER_QUESTION"
-                          ? "soal"
-                          : formData.pricingType === "PER_SLIDE"
-                          ? "slide"
-                          : "unit"}
+                        Min. pembelian user agar bisa checkout
                       </p>
                     </div>
                   </div>
@@ -468,20 +486,25 @@ const ServiceForm = ({
               {/* Delivery Time */}
               <div className="space-y-2">
                 <Label htmlFor="deliveryTime">
-                  Waktu Pengerjaan (hari){" "}
-                  <span className="text-destructive">*</span>
+                  Waktu Pengerjaan <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  id="deliveryTime"
-                  type="number"
-                  value={formData.deliveryTime || ""}
-                  onChange={(e) =>
-                    handleChange("deliveryTime", Number(e.target.value))
-                  }
-                  placeholder="7"
-                  min={1}
-                  max={90}
-                />
+                <div className="relative">
+                  <Input
+                    id="deliveryTime"
+                    type="number"
+                    value={formData.deliveryTime || ""}
+                    onChange={(e) =>
+                      handleChange("deliveryTime", Number(e.target.value))
+                    }
+                    placeholder="1"
+                    min={1}
+                    max={90}
+                    className="pr-16"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                    Hari
+                  </span>
+                </div>
                 {errors.deliveryTime && (
                   <p className="text-sm text-destructive">
                     {errors.deliveryTime}
@@ -492,17 +515,26 @@ const ServiceForm = ({
               {/* Revisions */}
               <div className="space-y-2">
                 <Label htmlFor="revisions">Jumlah Revisi</Label>
-                <Input
-                  id="revisions"
-                  type="number"
-                  value={formData.revisions || ""}
-                  onChange={(e) =>
-                    handleChange("revisions", Number(e.target.value))
-                  }
-                  placeholder="1"
-                  min={0}
-                  max={10}
-                />
+                <div className="relative">
+                  <Input
+                    id="revisions"
+                    type="number"
+                    value={formData.revisions || ""}
+                    onChange={(e) =>
+                      handleChange("revisions", Number(e.target.value))
+                    }
+                    placeholder="0"
+                    min={0}
+                    max={10}
+                    className="pr-16"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                    Kali
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                   Isi 0 jika tidak ada revisi
+                </p>
               </div>
 
               {/* Service Details Section */}
